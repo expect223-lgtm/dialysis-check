@@ -99,8 +99,34 @@ async function syncDataFromCloud() {
 
             // Update logs
             if (res.logs) {
-                handoverLogs = res.logs;
+                const localLogs = JSON.parse(localStorage.getItem("handoverLogs")) || [];
+                const cloudLogs = res.logs;
+                const mergedLogs = [...cloudLogs];
+                let hasLocalOnlyLogs = false;
+
+                localLogs.forEach(localLog => {
+                    const inCloud = cloudLogs.find(cloudLog => cloudLog.date === localLog.date);
+                    if (!inCloud) {
+                        mergedLogs.push(localLog);
+                        hasLocalOnlyLogs = true;
+                    } else {
+                        const localTime = new Date(localLog.timestamp || 0).getTime();
+                        const cloudTime = new Date(inCloud.timestamp || 0).getTime();
+                        if (localTime > cloudTime) {
+                            const idx = mergedLogs.findIndex(l => l.date === localLog.date);
+                            mergedLogs[idx] = localLog;
+                            hasLocalOnlyLogs = true;
+                        }
+                    }
+                });
+
+                handoverLogs = mergedLogs;
                 localStorage.setItem("handoverLogs", JSON.stringify(handoverLogs));
+
+                if (hasLocalOnlyLogs) {
+                    postToCloud({ action: "saveLogs", logs: handoverLogs });
+                }
+
                 // Reload current day's record
                 const date = elements.dateInput.value;
                 if (date) {
@@ -165,25 +191,27 @@ async function postToCloud(payload, successMessage) {
     if (!GAS_API_URL) return true; // Treat as success if cloud is not configured
 
     try {
-        // Use mode: "no-cors" to bypass CORS redirect blocks on secure hosting domains (like GitHub Pages)
-        await fetch(GAS_API_URL, {
-            method: "POST",
-            mode: "no-cors",
-            headers: {
-                "Content-Type": "text/plain;charset=utf-8"
-            },
-            body: JSON.stringify(payload),
-            redirect: "follow"
+        // Send as GET request to bypass all browser CORS redirect policies on secure hosting environments
+        const url = `${GAS_API_URL}?action=${payload.action}&data=${encodeURIComponent(JSON.stringify(payload))}`;
+
+        const response = await fetch(url, {
+            method: "GET",
+            mode: "cors"
         });
 
-        // In no-cors mode, the response is opaque, meaning the browser restricts reading the response content.
-        // If the fetch promise resolves without throwing a network error, the request has been successfully sent.
-        if (successMessage) {
-            showToast(successMessage, "success");
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+
+        const res = await response.json();
+        if (res.status === "success") {
+            if (successMessage) {
+                showToast(successMessage, "success");
+            }
+            return true;
+        } else {
+            throw new Error(res.message || "Cloud rejected write");
         }
-        return true;
     } catch (error) {
-        console.error("Cloud post failed:", error);
+        console.error("Cloud send failed:", error);
         showToast(`雲端同步失敗 (${error.message || error})，資料已儲存至此裝置`, "warning");
         return false;
     }
@@ -821,9 +849,30 @@ function lookupEmployee(idVal, nameDisplay, statusBadge) {
         statusBadge.className = "badge badge-success";
         statusBadge.innerHTML = isSupervisor ? `<i class="fa-solid fa-circle-check"></i> 已核簽` : `<i class="fa-solid fa-circle-check"></i> 已驗證`;
     } else {
-        nameDisplay.innerText = "找不到該員工";
-        statusBadge.className = "badge badge-warning";
-        statusBadge.innerHTML = `<i class="fa-solid fa-question"></i> 未註冊`;
+        // Fallback to name saved in log for the current date if employee database lookup fails
+        let fallbackName = "";
+        if (elements.dateInput) {
+            const date = elements.dateInput.value;
+            const log = handoverLogs.find(l => l.date === date);
+            if (log) {
+                if (statusBadge.id === "sig-r1-status" && cleanId === log.r1NurseId) fallbackName = log.r1NurseName;
+                else if (statusBadge.id === "sig-r2-status" && cleanId === log.r2NurseId) fallbackName = log.r2NurseName;
+                else if (statusBadge.id === "sig-meds-status" && cleanId === log.medsNurseId) fallbackName = log.medsNurseName;
+                else if (statusBadge.id === "sig-devices-status" && cleanId === log.devicesNurseId) fallbackName = log.devicesNurseName;
+                else if (statusBadge.id === "sig-inst-status" && cleanId === log.instNurseId) fallbackName = log.instNurseName;
+                else if (statusBadge.id === "sig-supervisor-status" && cleanId === log.supervisorNurseId) fallbackName = log.supervisorNurseName;
+            }
+        }
+
+        if (fallbackName) {
+            nameDisplay.innerText = fallbackName;
+            statusBadge.className = "badge badge-success";
+            statusBadge.innerHTML = isSupervisor ? `<i class="fa-solid fa-circle-check"></i> 已核簽` : `<i class="fa-solid fa-circle-check"></i> 已驗證`;
+        } else {
+            nameDisplay.innerText = "找不到該員工";
+            statusBadge.className = "badge badge-warning";
+            statusBadge.innerHTML = `<i class="fa-solid fa-question"></i> 未註冊`;
+        }
     }
 }
 
