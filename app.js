@@ -165,10 +165,10 @@ async function postToCloud(payload, successMessage) {
     if (!GAS_API_URL) return true; // Treat as success if cloud is not configured
 
     try {
-        // Use text/plain to avoid CORS preflight OPTIONS request that GAS doesn't support
-        const response = await fetch(GAS_API_URL, {
+        // Use mode: "no-cors" to bypass CORS redirect blocks on secure hosting domains (like GitHub Pages)
+        await fetch(GAS_API_URL, {
             method: "POST",
-            mode: "cors",
+            mode: "no-cors",
             headers: {
                 "Content-Type": "text/plain;charset=utf-8"
             },
@@ -176,17 +176,12 @@ async function postToCloud(payload, successMessage) {
             redirect: "follow"
         });
 
-        if (!response.ok) throw new Error("HTTP error " + response.status);
-
-        const res = await response.json();
-        if (res.status === "success") {
-            if (successMessage) {
-                showToast(successMessage, "success");
-            }
-            return true;
-        } else {
-            throw new Error(res.message || "Cloud rejected write");
+        // In no-cors mode, the response is opaque, meaning the browser restricts reading the response content.
+        // If the fetch promise resolves without throwing a network error, the request has been successfully sent.
+        if (successMessage) {
+            showToast(successMessage, "success");
         }
+        return true;
     } catch (error) {
         console.error("Cloud post failed:", error);
         showToast(`雲端同步失敗 (${error.message || error})，資料已儲存至此裝置`, "warning");
