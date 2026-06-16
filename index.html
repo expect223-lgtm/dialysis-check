@@ -200,300 +200,280 @@
                 </div>
             </div>
 
-            <!-- Mathematical Verification Banner for Rooms -->
-            <div class="verification-summary" id="rooms-verification-banner">
-                <div class="stat-box">
-                    <span class="stat-label">止血鉗 (Kelly) 總量</span>
-                    <span class="stat-val" id="val-kelly-total">0 / 55 支</span>
+            <!-- Tab 2: Ward Meds & Oximeter -->
+            <section class="tab-pane" id="pane-meds">
+                <div class="section-header">
+                    <h2>常備藥與血氧機點班</h2>
+                    <p>常備管制藥品及手指型血氧機清點（包含 Heparin 電子點班單確認）</p>
                 </div>
-                <div class="stat-box">
-                    <span class="stat-label">乳膠枕 總數</span>
-                    <span class="stat-val" id="val-pillow-total">0 / 52 顆</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">第一洗腎室 Kelly+A車數量</span>
-                    <span class="stat-val" id="val-r1-kelly">0 / 36</span>
-                </div>
-                <div class="stat-box">
-                    <span class="stat-label">第二洗腎室 Kelly數量</span>
-                    <span class="stat-val" id="val-r2-kelly">0 / 17</span>
-                </div>
-            </div>
 
-        </section>
+                <div class="grid-2">
+                    <!-- Common Meds -->
+                    <div class="card">
+                        <h3
+                            style="margin-bottom: 12px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-pills"></i> 常備藥品清點
+                        </h3>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>藥品名稱與規格</th>
+                                        <th>預設數量</th>
+                                        <th>實點數量 / 確認</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-meds">
+                                    <!-- Filled by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Meds Signature -->
+                        <div style="margin-top: 16px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
+                            <div
+                                style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+                                <span style="font-weight: 600; font-size: 0.95rem; color: var(--primary);"><i
+                                        class="fa-solid fa-user-check"></i> 點班人員</span>
+                                <span class="badge badge-danger" id="sig-meds-status"
+                                    style="font-size:0.8rem; padding: 3px 8px;"><i class="fa-solid fa-circle-xmark"></i>
+                                    未驗證</span>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                <input type="text" id="nurse-meds-id" placeholder="工號 (如: 1003)"
+                                    style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
+                                <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
+                                    id="nurse-meds-name-display">—</div>
+                            </div>
+                            <div>
+                                <textarea id="notes-meds" rows="2"
+                                    style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.88rem; resize: vertical;"
+                                    placeholder="異常說明或點班數量不符合說明..."></textarea>
+                            </div>
+                            <button class="btn btn-primary" id="btn-submit-meds"
+                                style="width: 100%; margin-top: 10px; padding: 8px; font-size: 0.95rem; font-weight: 700;">
+                                <i class="fa-solid fa-clipboard-check"></i> 確認點班
+                            </button>
+                        </div>
+                    </div>
 
-        <!-- Tab 2: Ward Meds & Oximeter -->
-        <section class="tab-pane" id="pane-meds">
-            <div class="section-header">
-                <h2>常備藥與血氧機點班</h2>
-                <p>常備管制藥品及手指型血氧機清點（包含 Heparin 電子點班單確認）</p>
-            </div>
+                    <!-- Equipment -->
+                    <div class="card">
+                        <h3
+                            style="margin-bottom: 12px; color: var(--secondary); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-heart-pulse"></i> 儀器設備清點
+                        </h3>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>品項</th>
+                                        <th>預設數量</th>
+                                        <th>實點數量</th>
+                                        <th>狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-med-devices">
+                                    <!-- Filled by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Devices Signature -->
+                        <div style="margin-top: 16px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
+                            <div
+                                style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
+                                <span style="font-weight: 600; font-size: 0.95rem; color: var(--primary);"><i
+                                        class="fa-solid fa-user-check"></i> 點班人員</span>
+                                <span class="badge badge-danger" id="sig-devices-status"
+                                    style="font-size:0.8rem; padding: 3px 8px;"><i class="fa-solid fa-circle-xmark"></i>
+                                    未驗證</span>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                <input type="text" id="nurse-devices-id" placeholder="工號 (如: 1004)"
+                                    style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
+                                <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
+                                    id="nurse-devices-name-display">—</div>
+                            </div>
+                            <div>
+                                <textarea id="notes-devices" rows="2"
+                                    style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.88rem; resize: vertical;"
+                                    placeholder="異常說明或點班數量不符合說明..."></textarea>
+                            </div>
+                            <button class="btn btn-primary" id="btn-submit-devices"
+                                style="width: 100%; margin-top: 10px; padding: 8px; font-size: 0.95rem; font-weight: 700;">
+                                <i class="fa-solid fa-clipboard-check"></i> 確認點班
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-            <div class="grid-2">
-                <!-- Common Meds -->
+            <!-- Tab 3: Pack Instruments -->
+            <section class="tab-pane" id="pane-instruments">
+                <div class="section-header">
+                    <h2>包盤器械與病房設備點班</h2>
+                    <p>透析室包盤器械、氣體流量表、無菌隔離衣等效期與數量清點</p>
+                </div>
+
                 <div class="card">
                     <h3
                         style="margin-bottom: 12px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
-                        <i class="fa-solid fa-pills"></i> 常備藥品清點
+                        <i class="fa-solid fa-boxes-packing"></i> 包盤器械及布品項目
                     </h3>
                     <div class="table-responsive">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>藥品名稱與規格</th>
+                                    <th>品項名稱</th>
                                     <th>預設數量</th>
                                     <th>實點數量 / 確認</th>
                                     <th>狀態</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-meds">
+                            <tbody id="tbody-instruments">
                                 <!-- Filled by JS -->
                             </tbody>
                         </table>
                     </div>
-                    <!-- Meds Signature -->
+                    <!-- Instruments Signature -->
                     <div style="margin-top: 16px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
                         <div
                             style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
                             <span style="font-weight: 600; font-size: 0.95rem; color: var(--primary);"><i
                                     class="fa-solid fa-user-check"></i> 點班人員</span>
-                            <span class="badge badge-danger" id="sig-meds-status"
+                            <span class="badge badge-danger" id="sig-inst-status"
                                 style="font-size:0.8rem; padding: 3px 8px;"><i class="fa-solid fa-circle-xmark"></i>
                                 未驗證</span>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                            <input type="text" id="nurse-meds-id" placeholder="工號 (如: 1003)"
+                            <input type="text" id="nurse-inst-id" placeholder="工號 (如: 1005)"
                                 style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
                             <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
-                                id="nurse-meds-name-display">—</div>
+                                id="nurse-inst-name-display">—</div>
                         </div>
                         <div>
-                            <textarea id="notes-meds" rows="2"
+                            <textarea id="notes-inst" rows="2"
                                 style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.88rem; resize: vertical;"
                                 placeholder="異常說明或點班數量不符合說明..."></textarea>
                         </div>
-                        <button class="btn btn-primary" id="btn-submit-meds"
+                        <button class="btn btn-primary" id="btn-submit-inst"
                             style="width: 100%; margin-top: 10px; padding: 8px; font-size: 0.95rem; font-weight: 700;">
                             <i class="fa-solid fa-clipboard-check"></i> 確認點班
                         </button>
                     </div>
                 </div>
+            </section>
 
-                <!-- Equipment -->
-                <div class="card">
-                    <h3
-                        style="margin-bottom: 12px; color: var(--secondary); display: flex; align-items: center; gap: 8px;">
-                        <i class="fa-solid fa-heart-pulse"></i> 儀器設備清點
-                    </h3>
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>品項</th>
-                                    <th>預設數量</th>
-                                    <th>實點數量</th>
-                                    <th>狀態</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tbody-med-devices">
-                                <!-- Filled by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                    <!-- Devices Signature -->
-                    <div style="margin-top: 16px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
-                        <div
-                            style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
-                            <span style="font-weight: 600; font-size: 0.95rem; color: var(--primary);"><i
-                                    class="fa-solid fa-user-check"></i> 點班人員</span>
-                            <span class="badge badge-danger" id="sig-devices-status"
-                                style="font-size:0.8rem; padding: 3px 8px;"><i class="fa-solid fa-circle-xmark"></i>
-                                未驗證</span>
-                        </div>
-                        <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                            <input type="text" id="nurse-devices-id" placeholder="工號 (如: 1004)"
-                                style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
-                            <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
-                                id="nurse-devices-name-display">—</div>
-                        </div>
-                        <div>
-                            <textarea id="notes-devices" rows="2"
-                                style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.88rem; resize: vertical;"
-                                placeholder="異常說明或點班數量不符合說明..."></textarea>
-                        </div>
-                        <button class="btn btn-primary" id="btn-submit-devices"
-                            style="width: 100%; margin-top: 10px; padding: 8px; font-size: 0.95rem; font-weight: 700;">
-                            <i class="fa-solid fa-clipboard-check"></i> 確認點班
-                        </button>
-                    </div>
+            <!-- Tab 4: History and Monthly Grid -->
+            <section class="tab-pane" id="pane-history">
+                <div class="section-header">
+                    <h2>歷史紀錄與月度總表</h2>
+                    <p>追蹤本月份每日點班狀態，以及查詢詳細交接歷史</p>
                 </div>
-            </div>
-        </section>
 
-        <!-- Tab 3: Pack Instruments -->
-        <section class="tab-pane" id="pane-instruments">
-            <div class="section-header">
-                <h2>包盤器械與病房設備點班</h2>
-                <p>透析室包盤器械、氣體流量表、無菌隔離衣等效期與數量清點</p>
-            </div>
-
-            <div class="card">
-                <h3 style="margin-bottom: 12px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
-                    <i class="fa-solid fa-boxes-packing"></i> 包盤器械及布品項目
-                </h3>
-                <div class="table-responsive">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>品項名稱</th>
-                                <th>預設數量</th>
-                                <th>實點數量 / 確認</th>
-                                <th>狀態</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tbody-instruments">
-                            <!-- Filled by JS -->
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Instruments Signature -->
-                <div style="margin-top: 16px; border-top: 1px dashed var(--border-color); padding-top: 16px;">
+                <!-- Month Selection -->
+                <div class="card" style="margin-bottom: 20px;">
                     <div
-                        style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;">
-                        <span style="font-weight: 600; font-size: 0.95rem; color: var(--primary);"><i
-                                class="fa-solid fa-user-check"></i> 點班人員</span>
-                        <span class="badge badge-danger" id="sig-inst-status"
-                            style="font-size:0.8rem; padding: 3px 8px;"><i class="fa-solid fa-circle-xmark"></i>
-                            未驗證</span>
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <label for="history-month-select" style="font-weight: 600;"><i
+                                    class="fa-solid fa-calendar"></i>
+                                選擇月份：</label>
+                            <input type="month" id="history-month-select"
+                                style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main);">
+                            <button class="btn btn-success" id="print-monthly-report-btn"
+                                style="padding: 8px 14px; font-size: 0.9rem;">
+                                <i class="fa-solid fa-print"></i> 列印月度報表 (1-31日總表)
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <span class="badge badge-success"><span class="dot dot-day"
+                                    style="vertical-align: middle;"></span> 已完成點班</span>
+                            <span class="badge badge-danger"><span class="dot dot-error"
+                                    style="vertical-align: middle;"></span> 異常申報</span>
+                        </div>
                     </div>
-                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                        <input type="text" id="nurse-inst-id" placeholder="工號 (如: 1005)"
-                            style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
-                        <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
-                            id="nurse-inst-name-display">—</div>
+                </div>
+
+                <!-- Calendar View -->
+                <div class="card calendar-view">
+                    <div class="calendar-header">
+                        <h3 id="calendar-month-title">2026年 6月 點班曆</h3>
                     </div>
-                    <div>
-                        <textarea id="notes-inst" rows="2"
+                    <div class="calendar-grid" id="calendar-grid-container">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Logs list -->
+                <div class="section-header" style="margin-top: 24px;">
+                    <h3>點班交接明細紀錄</h3>
+                </div>
+                <div class="log-list" id="log-list-container">
+                    <!-- Filled by JS -->
+                </div>
+            </section>
+
+            <!-- Unit Supervisor Audit Block (Visible at the bottom of Tab 1, 2, 3) -->
+            <div id="shared-signature-panel" class="card"
+                style="margin-top: 20px; border-left: 5px solid var(--primary); padding: 20px; display: block;">
+                <h3 style="margin-bottom: 12px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-user-tie"></i> 單位主管查核
+                </h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px;">
+                        <p style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.4;">
+                            主管查核此日點班交接狀態。請輸入主管工號進行審核確認。
+                        </p>
+                        <label
+                            style="display: flex; align-items: center; gap: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; color: var(--primary);">
+                            <input type="checkbox" id="chk-batch-audit" class="checkbox-custom"
+                                style="width:18px; height:18px; vertical-align: middle;"> 啟用批次查核
+                        </label>
+                    </div>
+
+                    <!-- Batch Date Range Picker (hidden by default) -->
+                    <div id="batch-date-container"
+                        style="display: none; background: var(--bg-main); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 4px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label for="batch-start-date"
+                                style="font-size: 0.88rem; font-weight: 700; color: var(--text-muted);">開始日期：</label>
+                            <input type="date" id="batch-start-date"
+                                style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.9rem;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label for="batch-end-date"
+                                style="font-size: 0.88rem; font-weight: 700; color: var(--text-muted);">結束日期：</label>
+                            <input type="date" id="batch-end-date"
+                                style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.9rem;">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 240px; display: flex; gap: 8px; align-items: center;">
+                            <input type="text" id="nurse-supervisor-id" placeholder="主管工號 (如: 1001)"
+                                style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
+                            <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
+                                id="nurse-supervisor-name-display">—</div>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <span class="badge badge-danger" id="sig-supervisor-status"
+                                style="font-size:0.88rem; padding: 4px 10px;"><i class="fa-solid fa-circle-xmark"></i>
+                                未核簽</span>
+                        </div>
+                    </div>
+                    <div style="margin-top: 4px;">
+                        <textarea id="notes-supervisor" rows="2"
                             style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.88rem; resize: vertical;"
-                            placeholder="異常說明或點班數量不符合說明..."></textarea>
+                            placeholder="主管查核意見或指示說明..."></textarea>
                     </div>
-                    <button class="btn btn-primary" id="btn-submit-inst"
-                        style="width: 100%; margin-top: 10px; padding: 8px; font-size: 0.95rem; font-weight: 700;">
-                        <i class="fa-solid fa-clipboard-check"></i> 確認點班
+                    <button class="btn btn-success" id="btn-submit-supervisor"
+                        style="width: 100%; margin-top: 4px; padding: 10px; font-size: 1rem; font-weight: 700;">
+                        <i class="fa-solid fa-stamp"></i> 提交主管核簽
                     </button>
                 </div>
             </div>
-        </section>
-
-        <!-- Tab 4: History and Monthly Grid -->
-        <section class="tab-pane" id="pane-history">
-            <div class="section-header">
-                <h2>歷史紀錄與月度總表</h2>
-                <p>追蹤本月份每日點班狀態，以及查詢詳細交接歷史</p>
-            </div>
-
-            <!-- Month Selection -->
-            <div class="card" style="margin-bottom: 20px;">
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <label for="history-month-select" style="font-weight: 600;"><i class="fa-solid fa-calendar"></i>
-                            選擇月份：</label>
-                        <input type="month" id="history-month-select"
-                            style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main);">
-                        <button class="btn btn-success" id="print-monthly-report-btn"
-                            style="padding: 8px 14px; font-size: 0.9rem;">
-                            <i class="fa-solid fa-print"></i> 列印月度報表 (1-31日總表)
-                        </button>
-                    </div>
-                    <div style="display: flex; gap: 12px;">
-                        <span class="badge badge-success"><span class="dot dot-day"
-                                style="vertical-align: middle;"></span> 已完成點班</span>
-                        <span class="badge badge-danger"><span class="dot dot-error"
-                                style="vertical-align: middle;"></span> 異常申報</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Calendar View -->
-            <div class="card calendar-view">
-                <div class="calendar-header">
-                    <h3 id="calendar-month-title">2026年 6月 點班曆</h3>
-                </div>
-                <div class="calendar-grid" id="calendar-grid-container">
-                    <!-- Filled by JS -->
-                </div>
-            </div>
-
-            <!-- Logs list -->
-            <div class="section-header" style="margin-top: 24px;">
-                <h3>點班交接明細紀錄</h3>
-            </div>
-            <div class="log-list" id="log-list-container">
-                <!-- Filled by JS -->
-            </div>
-        </section>
-
-        <!-- Unit Supervisor Audit Block (Visible at the bottom of Tab 1, 2, 3) -->
-        <div id="shared-signature-panel" class="card"
-            style="margin-top: 20px; border-left: 5px solid var(--primary); padding: 20px; display: block;">
-            <h3 style="margin-bottom: 12px; color: var(--primary); display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-user-tie"></i> 單位主管查核
-            </h3>
-            <div style="display: flex; flex-direction: column; gap: 12px;">
-                <div
-                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px;">
-                    <p style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.4;">
-                        主管查核此日點班交接狀態。請輸入主管工號進行審核確認。
-                    </p>
-                    <label
-                        style="display: flex; align-items: center; gap: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; color: var(--primary);">
-                        <input type="checkbox" id="chk-batch-audit" class="checkbox-custom"
-                            style="width:18px; height:18px; vertical-align: middle;"> 啟用批次查核
-                    </label>
-                </div>
-
-                <!-- Batch Date Range Picker (hidden by default) -->
-                <div id="batch-date-container"
-                    style="display: none; background: var(--bg-main); border: 1px solid var(--border-color); padding: 14px; border-radius: 8px; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 4px;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label for="batch-start-date"
-                            style="font-size: 0.88rem; font-weight: 700; color: var(--text-muted);">開始日期：</label>
-                        <input type="date" id="batch-start-date"
-                            style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.9rem;">
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <label for="batch-end-date"
-                            style="font-size: 0.88rem; font-weight: 700; color: var(--text-muted);">結束日期：</label>
-                        <input type="date" id="batch-end-date"
-                            style="padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.9rem;">
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 240px; display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="nurse-supervisor-id" placeholder="主管工號 (如: 1001)"
-                            style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-weight: 600; font-size: 0.88rem;">
-                        <div style="flex: 1; padding: 8px; background: var(--bg-main); border-radius: 6px; border: 1px solid var(--border-color); font-weight: bold; font-size: 0.95rem; color: var(--primary); text-align: center; height: 36px; display: flex; align-items: center; justify-content: center;"
-                            id="nurse-supervisor-name-display">—</div>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span class="badge badge-danger" id="sig-supervisor-status"
-                            style="font-size:0.88rem; padding: 4px 10px;"><i class="fa-solid fa-circle-xmark"></i>
-                            未核簽</span>
-                    </div>
-                </div>
-                <div style="margin-top: 4px;">
-                    <textarea id="notes-supervisor" rows="2"
-                        style="width: 100%; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.88rem; resize: vertical;"
-                        placeholder="主管查核意見或指示說明..."></textarea>
-                </div>
-                <button class="btn btn-success" id="btn-submit-supervisor"
-                    style="width: 100%; margin-top: 4px; padding: 10px; font-size: 1rem; font-weight: 700;">
-                    <i class="fa-solid fa-stamp"></i> 提交主管核簽
-                </button>
-            </div>
-        </div>
 
     </main>
 

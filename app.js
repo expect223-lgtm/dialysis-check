@@ -11,7 +11,7 @@ const DEFAULT_ITEMS = {
         { id: "r1_remote", name: "遙控器+抽屜", defaultVal: "34", type: "number" },
         { id: "r1_remote_extra", name: "額外遙控器", defaultVal: "2", type: "number" },
         { id: "r1_tourniquet", name: "A車止血帶", defaultVal: "2", type: "number" },
-        { id: "r1_ab_tubes", name: "AB管 (依現場)", defaultVal: "N27機台*2", type: "text" },
+        { id: "r1_ab_tubes", name: "AB管 (N27機台*2)", defaultVal: "checked", type: "checkbox" },
         { id: "r1_DL_expiry", name: "確認D/L效期 (打勾)", defaultVal: "checked", type: "checkbox" }
     ],
     r2: [
@@ -19,16 +19,14 @@ const DEFAULT_ITEMS = {
         { id: "r2_pillow", name: "乳膠枕", defaultVal: "17", type: "number" },
         { id: "r2_emerg", name: "急救包", defaultVal: "20", type: "number" },
         { id: "r2_remote", name: "遙控器", defaultVal: "20", type: "number" },
-        { id: "r2_ab_tubes", name: "AB管 (1台)", defaultVal: "2條", type: "text" },
-        { id: "r2_n27", name: "N27機台*2 (確認)", defaultVal: "checked", type: "checkbox" }
     ],
     meds: [
         { id: "med_heparin", name: "Heparin 25000u/5cc", defaultVal: "60", type: "number" },
         { id: "med_medason", name: "Medason", defaultVal: "2", type: "number" },
-        { id: "med_tramtor", name: "Tramtor (止痛)", defaultVal: "3", type: "number" },
-        { id: "med_vena", name: "Vena (抗敏)", defaultVal: "3", type: "number" },
-        { id: "med_gw", name: "50% G/W (高張糖水)", defaultVal: "60", type: "number" },
-        { id: "med_anxicam", name: "Anxicam (鎮靜)", defaultVal: "2", type: "number" },
+        { id: "med_tramtor", name: "Tramtor", defaultVal: "3", type: "number" },
+        { id: "med_vena", name: "Vena", defaultVal: "3", type: "number" },
+        { id: "med_gw", name: "50% G/W", defaultVal: "60", type: "number" },
+        { id: "med_anxicam", name: "Anxicam", defaultVal: "2", type: "number" },
         { id: "med_lidocaine", name: "Lidocaine 20ml (注意開封起訖)", defaultVal: "2", type: "number" },
         { id: "med_norepi", name: "Norepinephrine (Levophed)", defaultVal: "3", type: "number" },
         { id: "med_heparin_elec", name: "Heparin電子點班單 (250u/1cc)", defaultVal: "checked", type: "checkbox" }
