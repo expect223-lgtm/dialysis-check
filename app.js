@@ -72,10 +72,20 @@ const DEFAULT_EMPLOYEES = {
 let currentUserRole = "staff"; // "staff" or "admin"
 let currentTheme = localStorage.getItem("theme") || "light";
 let handoverLogs = JSON.parse(localStorage.getItem("handoverLogs")) || [];
-let employeeDb = JSON.parse(localStorage.getItem("employeeDb")) || DEFAULT_EMPLOYEES;
+let employeeDb = JSON.parse(localStorage.getItem("employeeDb")) || {};
+
+// Sync default employees from source code defaults to localStorage, preserving custom items added by user
+let dbUpdated = false;
+Object.keys(DEFAULT_EMPLOYEES).forEach(id => {
+    const defaultEmp = DEFAULT_EMPLOYEES[id];
+    const existingEmp = employeeDb[id];
+    if (!existingEmp || existingEmp.name !== defaultEmp.name || existingEmp.role !== defaultEmp.role) {
+        employeeDb[id] = { ...defaultEmp };
+        dbUpdated = true;
+    }
+});
 
 // Migrate employeeDb structure to support roles if needed
-let dbUpdated = false;
 Object.keys(employeeDb).forEach(id => {
     const val = employeeDb[id];
     if (typeof val === "string") {
@@ -90,23 +100,45 @@ Object.keys(employeeDb).forEach(id => {
         dbUpdated = true;
     }
 });
-if (dbUpdated) {
+if (dbUpdated || !localStorage.getItem("employeeDb")) {
     localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
 }
 
-// Active Checklist Items Schema
-let activeItems = JSON.parse(localStorage.getItem("checklistItems")) || DEFAULT_ITEMS;
-if (!localStorage.getItem("checklistItems")) {
-    localStorage.setItem("checklistItems", JSON.stringify(DEFAULT_ITEMS));
-}
+// Active Checklist Items Schema - Sync defaults from source code defaults
+let activeItems = JSON.parse(localStorage.getItem("checklistItems")) || {};
+let itemsUpdated = false;
+Object.keys(DEFAULT_ITEMS).forEach(cat => {
+    if (!activeItems[cat]) {
+        activeItems[cat] = [...DEFAULT_ITEMS[cat]];
+        itemsUpdated = true;
+    } else {
+        DEFAULT_ITEMS[cat].forEach(defaultItem => {
+            const existingItem = activeItems[cat].find(i => i.id === defaultItem.id);
+            if (!existingItem) {
+                activeItems[cat].push({ ...defaultItem });
+                itemsUpdated = true;
+            } else {
+                if (existingItem.name !== defaultItem.name || existingItem.type !== defaultItem.type || existingItem.defaultVal !== defaultItem.defaultVal) {
+                    existingItem.name = defaultItem.name;
+                    existingItem.type = defaultItem.type;
+                    existingItem.defaultVal = defaultItem.defaultVal;
+                    itemsUpdated = true;
+                }
+            }
+        });
+    }
+});
 
 // Migrate/Update D/L Item Name if needed
 if (activeItems.r1) {
     const dlItem = activeItems.r1.find(i => i.id === "r1_dl_expiry" || i.id === "r1_DL_expiry");
     if (dlItem && dlItem.name.includes("請於到期日7日前提出")) {
         dlItem.name = "確認D/L效期 (打勾)";
-        localStorage.setItem("checklistItems", JSON.stringify(activeItems));
+        itemsUpdated = true;
     }
+}
+if (itemsUpdated || !localStorage.getItem("checklistItems")) {
+    localStorage.setItem("checklistItems", JSON.stringify(activeItems));
 }
 
 // Print Footers Setup
@@ -115,9 +147,16 @@ const DEFAULT_PRINT_FOOTERS = {
     sheet2: "",
     sheet3: "確認器械/布品是否皆在效期內，確認完畢，請於點班單內打〝 V〞，(請於器械/布品到期前7日送消/洗)"
 };
-let printFooters = JSON.parse(localStorage.getItem("printFooters")) || DEFAULT_PRINT_FOOTERS;
-if (!localStorage.getItem("printFooters")) {
-    localStorage.setItem("printFooters", JSON.stringify(DEFAULT_PRINT_FOOTERS));
+let printFooters = JSON.parse(localStorage.getItem("printFooters")) || {};
+let footersUpdated = false;
+Object.keys(DEFAULT_PRINT_FOOTERS).forEach(key => {
+    if (printFooters[key] === undefined) {
+        printFooters[key] = DEFAULT_PRINT_FOOTERS[key];
+        footersUpdated = true;
+    }
+});
+if (footersUpdated || !localStorage.getItem("printFooters")) {
+    localStorage.setItem("printFooters", JSON.stringify(printFooters));
 }
 
 // DOM Elements
