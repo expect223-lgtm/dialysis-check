@@ -79,7 +79,8 @@ async function syncDataFromCloud() {
     try {
         const response = await fetch(`${GAS_API_URL}?action=getData`, {
             method: "GET",
-            mode: "cors"
+            mode: "cors",
+            redirect: "follow"
         });
 
         if (!response.ok) throw new Error("HTTP error " + response.status);
@@ -110,8 +111,12 @@ async function syncDataFromCloud() {
 
             // Update checklist items
             if (res.checklistItems && Object.keys(res.checklistItems).length > 0) {
-                activeItems = res.checklistItems;
+                const cloudMerge = mergeAndPruneChecklistItems(res.checklistItems);
+                activeItems = cloudMerge.items;
                 localStorage.setItem("checklistItems", JSON.stringify(activeItems));
+                if (cloudMerge.updated) {
+                    postToCloud({ action: "syncChecklistItems", checklistItems: activeItems });
+                }
                 renderAllChecklists();
                 performCalculations();
                 if (elements.itemsModal && elements.itemsModal.classList.contains("active")) {
@@ -167,7 +172,8 @@ async function postToCloud(payload, successMessage) {
             headers: {
                 "Content-Type": "text/plain;charset=utf-8"
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            redirect: "follow"
         });
 
         if (!response.ok) throw new Error("HTTP error " + response.status);
@@ -246,40 +252,61 @@ if (dbUpdated || !localStorage.getItem("employeeDb")) {
     localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
 }
 
+// Helper to merge source code DEFAULT_ITEMS defaults into loaded items, and prune removed defaults
+function mergeAndPruneChecklistItems(loadedItems) {
+    let updated = false;
+    const result = JSON.parse(JSON.stringify(loadedItems)); // deep copy
+
+    Object.keys(DEFAULT_ITEMS).forEach(cat => {
+        if (!result[cat]) {
+            result[cat] = [...DEFAULT_ITEMS[cat]];
+            updated = true;
+        } else {
+            // 1. Add new or update modified DEFAULT_ITEMS
+            DEFAULT_ITEMS[cat].forEach(defaultItem => {
+                const existingItem = result[cat].find(i => i.id === defaultItem.id);
+                if (!existingItem) {
+                    result[cat].push({ ...defaultItem });
+                    updated = true;
+                } else {
+                    if (existingItem.name !== defaultItem.name || existingItem.type !== defaultItem.type || existingItem.defaultVal !== defaultItem.defaultVal) {
+                        existingItem.name = defaultItem.name;
+                        existingItem.type = defaultItem.type;
+                        existingItem.defaultVal = defaultItem.defaultVal;
+                        updated = true;
+                    }
+                }
+            });
+
+            // 2. Prune default items that have been deleted from source code DEFAULT_ITEMS
+            const originalCount = result[cat].length;
+            result[cat] = result[cat].filter(item => {
+                // Keep if it is a user-added custom item (prefix "item_") OR still exists in DEFAULT_ITEMS
+                return item.id.startsWith("item_") || DEFAULT_ITEMS[cat].some(d => d.id === item.id);
+            });
+            if (result[cat].length !== originalCount) {
+                updated = true;
+            }
+        }
+    });
+
+    // Migrate/Update D/L Item Name if needed
+    if (result.r1) {
+        const dlItem = result.r1.find(i => i.id === "r1_dl_expiry" || i.id === "r1_DL_expiry");
+        if (dlItem && dlItem.name.includes("請於到期日7日前提出")) {
+            dlItem.name = "確認D/L效期 (打勾)";
+            updated = true;
+        }
+    }
+
+    return { items: result, updated: updated };
+}
+
 // Active Checklist Items Schema - Sync defaults from source code defaults
 let activeItems = JSON.parse(localStorage.getItem("checklistItems")) || {};
-let itemsUpdated = false;
-Object.keys(DEFAULT_ITEMS).forEach(cat => {
-    if (!activeItems[cat]) {
-        activeItems[cat] = [...DEFAULT_ITEMS[cat]];
-        itemsUpdated = true;
-    } else {
-        DEFAULT_ITEMS[cat].forEach(defaultItem => {
-            const existingItem = activeItems[cat].find(i => i.id === defaultItem.id);
-            if (!existingItem) {
-                activeItems[cat].push({ ...defaultItem });
-                itemsUpdated = true;
-            } else {
-                if (existingItem.name !== defaultItem.name || existingItem.type !== defaultItem.type || existingItem.defaultVal !== defaultItem.defaultVal) {
-                    existingItem.name = defaultItem.name;
-                    existingItem.type = defaultItem.type;
-                    existingItem.defaultVal = defaultItem.defaultVal;
-                    itemsUpdated = true;
-                }
-            }
-        });
-    }
-});
-
-// Migrate/Update D/L Item Name if needed
-if (activeItems.r1) {
-    const dlItem = activeItems.r1.find(i => i.id === "r1_dl_expiry" || i.id === "r1_DL_expiry");
-    if (dlItem && dlItem.name.includes("請於到期日7日前提出")) {
-        dlItem.name = "確認D/L效期 (打勾)";
-        itemsUpdated = true;
-    }
-}
-if (itemsUpdated || !localStorage.getItem("checklistItems")) {
+const mergeResult = mergeAndPruneChecklistItems(activeItems);
+activeItems = mergeResult.items;
+if (mergeResult.updated || !localStorage.getItem("checklistItems")) {
     localStorage.setItem("checklistItems", JSON.stringify(activeItems));
 }
 
