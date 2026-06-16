@@ -56,23 +56,115 @@ const DEFAULT_ITEMS = {
 };
 
 // --- Mock Employee Database ---
-const DEFAULT_EMPLOYEES = {
-    "1001": { name: "陳美玲 (護理長)", role: "admin" },
-    "1002": { name: "林小婷 (護理師)", role: "staff" },
-    "1003": { name: "張雅琪 (護理師)", role: "staff" },
-    "1004": { name: "黃若薇 (護理師)", role: "staff" },
-    "1005": { name: "劉佳雯 (護理師)", role: "staff" },
-    "1006": { name: "陳映秀 (護理師)", role: "staff" },
-    "1007": { name: "吳昭儀 (護理師)", role: "staff" },
-    "1008": { name: "徐若瑄 (護理師)", role: "staff" },
-    "1009": { name: "許美珍 (護理師)", role: "staff" }
-};
+const DEFAULT_EMPLOYEES = {};
+
+// --- Cloud Database Configuration ---
+// 請在此處貼上您的 Google Apps Script 部署網頁應用程式 URL (Web App URL)
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycby1UKrcNbZH9Ik_Knp5h-mjaEET302vWu-zjS5yjYl1OQ5IL-lcA0hLTT40kOwld-pu/exec";
 
 // Global State
 let currentUserRole = "staff"; // "staff" or "admin"
 let currentTheme = localStorage.getItem("theme") || "light";
 let handoverLogs = JSON.parse(localStorage.getItem("handoverLogs")) || [];
 let employeeDb = JSON.parse(localStorage.getItem("employeeDb")) || {};
+
+// --- Cloud Syncing Logic ---
+async function syncDataFromCloud() {
+    if (!GAS_API_URL) {
+        updateCloudStatus("inactive", "尚未設定雲端 URL");
+        return;
+    }
+
+    updateCloudStatus("syncing", "雲端同步中...");
+
+    try {
+        const response = await fetch(`${GAS_API_URL}?action=getData`, {
+            method: "GET",
+            mode: "cors"
+        });
+
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+
+        const res = await response.json();
+        if (res.status === "success") {
+            // Update employees
+            if (res.employees && Object.keys(res.employees).length > 0) {
+                employeeDb = res.employees;
+                localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
+                triggerAllLookups();
+                if (elements.tbodyEmployees && elements.employeeModal.classList.contains("active")) {
+                    renderEmployeeTable();
+                }
+            }
+
+            // Update logs
+            if (res.logs) {
+                handoverLogs = res.logs;
+                localStorage.setItem("handoverLogs", JSON.stringify(handoverLogs));
+                // Reload current day's record
+                const date = elements.dateInput.value;
+                if (date) {
+                    loadRecordForDate(date);
+                }
+                initHistoryTab(); // Refresh calendar & log list
+            }
+
+            updateCloudStatus("success", "雲端已同步");
+        } else {
+            throw new Error(res.message || "Unknown error");
+        }
+    } catch (error) {
+        console.error("Cloud sync failed:", error);
+        updateCloudStatus("error", "同步失敗 (使用本地資料)");
+    }
+}
+
+function updateCloudStatus(status, text) {
+    const indicator = document.getElementById("cloud-sync-status");
+    if (!indicator) return;
+
+    indicator.className = `badge cloud-status-${status}`;
+
+    let icon = "fa-cloud";
+    if (status === "syncing") icon = "fa-spinner fa-spin";
+    else if (status === "success") icon = "fa-cloud-arrow-up";
+    else if (status === "error") icon = "fa-triangle-exclamation";
+    else if (status === "inactive") icon = "fa-cloud-slash";
+
+    indicator.innerHTML = `<i class="fa-solid ${icon}"></i> ${text}`;
+}
+
+async function postToCloud(payload, successMessage) {
+    if (!GAS_API_URL) return true; // Treat as success if cloud is not configured
+
+    try {
+        // Use text/plain to avoid CORS preflight OPTIONS request that GAS doesn't support
+        const response = await fetch(GAS_API_URL, {
+            method: "POST",
+            mode: "cors",
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error("HTTP error " + response.status);
+
+        const res = await response.json();
+        if (res.status === "success") {
+            if (successMessage) {
+                showToast(successMessage, "success");
+            }
+            return true;
+        } else {
+            throw new Error(res.message || "Cloud rejected write");
+        }
+    } catch (error) {
+        console.error("Cloud post failed:", error);
+        showToast("雲端同步失敗，資料已儲存至此裝置", "warning");
+        return false;
+    }
+}
 
 // Sync default employees from source code defaults to localStorage, preserving custom items added by user
 let dbUpdated = false;
@@ -165,30 +257,30 @@ const elements = {
     printBtn: document.getElementById("print-report-btn"),
     submitBtn: document.getElementById("submit-handover-btn"),
     dateInput: document.getElementById("handover-date"),
-    
+
     // View tabs
     tabBtns: document.querySelectorAll(".tab-btn"),
     tabPanes: document.querySelectorAll(".tab-pane"),
-    
+
     // Tables
     tbodyR1: document.getElementById("tbody-r1"),
     tbodyR2: document.getElementById("tbody-r2"),
     tbodyMeds: document.getElementById("tbody-meds"),
     tbodyMedDevices: document.getElementById("tbody-med-devices"),
     tbodyInstruments: document.getElementById("tbody-instruments"),
-    
+
     // Verification totals
     valKellyTotal: document.getElementById("val-kelly-total"),
     valPillowTotal: document.getElementById("val-pillow-total"),
     valR1Kelly: document.getElementById("val-r1-kelly"),
     valR2Kelly: document.getElementById("val-r2-kelly"),
-    
+
     // History calendar & list
     calendarGrid: document.getElementById("calendar-grid-container"),
     calendarMonthTitle: document.getElementById("calendar-month-title"),
     monthSelect: document.getElementById("history-month-select"),
-        logListContainer: document.getElementById("log-list-container"),
-    
+    logListContainer: document.getElementById("log-list-container"),
+
     // Detail Modal
     detailModal: document.getElementById("detail-modal"),
     modalTitle: document.getElementById("modal-title"),
@@ -197,7 +289,7 @@ const elements = {
     modalPrintBtn: document.getElementById("modal-print-btn"),
     modalCloseBtn: document.getElementById("modal-close-btn"),
     modalCloseFooterBtn: document.getElementById("modal-close-footer-btn"),
-    
+
     // Section specific checkers & notes
     nurseR1Id: document.getElementById("nurse-r1-id"),
     nurseR2Id: document.getElementById("nurse-r2-id"),
@@ -205,30 +297,30 @@ const elements = {
     nurseDevicesId: document.getElementById("nurse-devices-id"),
     nurseInstId: document.getElementById("nurse-inst-id"),
     nurseSupervisorId: document.getElementById("nurse-supervisor-id"),
-    
+
     nurseR1NameDisplay: document.getElementById("nurse-r1-name-display"),
     nurseR2NameDisplay: document.getElementById("nurse-r2-name-display"),
     nurseMedsNameDisplay: document.getElementById("nurse-meds-name-display"),
     nurseDevicesNameDisplay: document.getElementById("nurse-devices-name-display"),
     nurseInstNameDisplay: document.getElementById("nurse-inst-name-display"),
     nurseSupervisorNameDisplay: document.getElementById("nurse-supervisor-name-display"),
-    
+
     sigR1Status: document.getElementById("sig-r1-status"),
     sigR2Status: document.getElementById("sig-r2-status"),
     sigMedsStatus: document.getElementById("sig-meds-status"),
     sigDevicesStatus: document.getElementById("sig-devices-status"),
     sigInstStatus: document.getElementById("sig-inst-status"),
     sigSupervisorStatus: document.getElementById("sig-supervisor-status"),
-    
+
     notesR1: document.getElementById("notes-r1"),
     notesR2: document.getElementById("notes-r2"),
     notesMeds: document.getElementById("notes-meds"),
     notesDevices: document.getElementById("notes-devices"),
     notesInst: document.getElementById("notes-inst"),
     notesSupervisor: document.getElementById("notes-supervisor"),
-    
+
     sigPanel: document.getElementById("shared-signature-panel"),
-    
+
     // Role & Admin modal DOM elements
     roleBadge: document.getElementById("role-badge"),
     btnSwitchRole: document.getElementById("btn-switch-role"),
@@ -238,7 +330,7 @@ const elements = {
     adminAuthErrorMsg: document.getElementById("admin-auth-error-msg"),
     btnAdminAuthSubmit: document.getElementById("btn-admin-auth-submit"),
     btnAdminAuthCancel: document.getElementById("btn-admin-auth-cancel"),
-    
+
     // Section submit buttons & check batch range inputs
     btnSubmitR1: document.getElementById("btn-submit-r1"),
     btnSubmitR2: document.getElementById("btn-submit-r2"),
@@ -250,7 +342,7 @@ const elements = {
     batchDateContainer: document.getElementById("batch-date-container"),
     batchStartDate: document.getElementById("batch-start-date"),
     batchEndDate: document.getElementById("batch-end-date"),
-    
+
     // Employee Modal
     employeeModal: document.getElementById("employee-modal"),
     employeeModalCloseBtn: document.getElementById("employee-modal-close-btn"),
@@ -261,7 +353,7 @@ const elements = {
     btnAddEmployee: document.getElementById("btn-add-employee"),
     tbodyEmployees: document.getElementById("tbody-employees"),
     empFileImport: document.getElementById("emp-file-import"),
-    
+
     // Items Modal
     itemsModal: document.getElementById("items-modal"),
     itemsModalCloseBtn: document.getElementById("items-modal-close-btn"),
@@ -286,6 +378,9 @@ document.addEventListener("DOMContentLoaded", () => {
     bindEvents();
     performCalculations();
     updateUiForRole();
+
+    // Fetch latest data from Google Sheets cloud
+    syncDataFromCloud();
 });
 
 // --- Theme Management ---
@@ -316,7 +411,7 @@ function initDateTime() {
     const tzoffset = now.getTimezoneOffset() * 60000;
     const localISOTime = (new Date(now - tzoffset)).toISOString().slice(0, 10);
     elements.dateInput.value = localISOTime;
-    elements.monthSelect.value = localISOTime.slice(0, 7); 
+    elements.monthSelect.value = localISOTime.slice(0, 7);
     loadRecordForDate(localISOTime);
 }
 
@@ -330,7 +425,7 @@ function loadRecordForDate(date) {
             activeItems[cat].forEach(item => {
                 const inputEl = document.getElementById(`input-${item.id}`);
                 if (!inputEl) return;
-                
+
                 const savedVal = log.records[item.id];
                 if (savedVal !== undefined) {
                     if (item.type === "checkbox") {
@@ -347,7 +442,7 @@ function loadRecordForDate(date) {
                 }
             });
         });
-        
+
         // Load checkers
         if (elements.nurseR1Id) elements.nurseR1Id.value = log.r1NurseId || "";
         if (elements.nurseR2Id) elements.nurseR2Id.value = log.r2NurseId || "";
@@ -355,7 +450,7 @@ function loadRecordForDate(date) {
         if (elements.nurseDevicesId) elements.nurseDevicesId.value = log.devicesNurseId || "";
         if (elements.nurseInstId) elements.nurseInstId.value = log.instNurseId || "";
         if (elements.nurseSupervisorId) elements.nurseSupervisorId.value = log.supervisorNurseId || "";
-        
+
         // Load notes
         if (elements.notesR1) elements.notesR1.value = log.notesR1 || "";
         if (elements.notesR2) elements.notesR2.value = log.notesR2 || "";
@@ -371,7 +466,7 @@ function loadRecordForDate(date) {
             activeItems[cat].forEach(item => {
                 const inputEl = document.getElementById(`input-${item.id}`);
                 if (!inputEl) return;
-                
+
                 if (item.type === "checkbox") {
                     inputEl.checked = item.defaultVal === "checked";
                 } else {
@@ -379,7 +474,7 @@ function loadRecordForDate(date) {
                 }
             });
         });
-        
+
         // Clear checkers
         if (elements.nurseR1Id) elements.nurseR1Id.value = "";
         if (elements.nurseR2Id) elements.nurseR2Id.value = "";
@@ -387,7 +482,7 @@ function loadRecordForDate(date) {
         if (elements.nurseDevicesId) elements.nurseDevicesId.value = "";
         if (elements.nurseInstId) elements.nurseInstId.value = "";
         if (elements.nurseSupervisorId) elements.nurseSupervisorId.value = "";
-        
+
         // Clear notes
         if (elements.notesR1) elements.notesR1.value = "";
         if (elements.notesR2) elements.notesR2.value = "";
@@ -396,7 +491,7 @@ function loadRecordForDate(date) {
         if (elements.notesInst) elements.notesInst.value = "";
         if (elements.notesSupervisor) elements.notesSupervisor.value = "";
     }
-    
+
     // Trigger employee lookup displays and validation states
     triggerAllLookups();
     performCalculations();
@@ -408,11 +503,11 @@ function initTabNavigation() {
         btn.addEventListener("click", () => {
             elements.tabBtns.forEach(b => b.classList.remove("active"));
             elements.tabPanes.forEach(pane => pane.classList.remove("active"));
-            
+
             btn.classList.add("active");
             const targetPane = document.getElementById(btn.getAttribute("data-target"));
             targetPane.classList.add("active");
-            
+
             // Re-evaluate UI displays including the supervisor panel based on the newly selected tab
             updateUiForRole();
         });
@@ -434,11 +529,11 @@ function renderTableRows(items, tbody) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:20px;">無點班品項，請點選「設定點班品項」新增！</td></tr>`;
         return;
     }
-    
+
     items.forEach(item => {
         const tr = document.createElement("tr");
         tr.id = `row-${item.id}`;
-        
+
         const tdName = document.createElement("td");
         tdName.style.fontWeight = "500";
         if (item.id === "r1_DL_expiry" || item.id === "r1_dl_expiry") {
@@ -448,7 +543,7 @@ function renderTableRows(items, tbody) {
             tdName.innerHTML = item.name;
         }
         tr.appendChild(tdName);
-        
+
         const tdDefault = document.createElement("td");
         if (item.type === "checkbox") {
             tdDefault.innerHTML = `<span class="badge" style="background: rgba(16, 185, 129, 0.1); color: var(--success);"><i class="fa-solid fa-check-double"></i> 應確認</span>`;
@@ -456,7 +551,7 @@ function renderTableRows(items, tbody) {
             tdDefault.innerHTML = `<span style="font-weight:600; color: var(--text-muted);">${item.defaultVal}</span>`;
         }
         tr.appendChild(tdDefault);
-        
+
         const tdActual = document.createElement("td");
         if (item.type === "number") {
             tdActual.innerHTML = `<input type="number" id="input-${item.id}" class="num-input" value="${item.defaultVal}" min="0" oninput="performCalculations()">`;
@@ -466,12 +561,12 @@ function renderTableRows(items, tbody) {
             tdActual.innerHTML = `<input type="text" id="input-${item.id}" style="width: 120px; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main);" value="${item.defaultVal}" oninput="performCalculations()">`;
         }
         tr.appendChild(tdActual);
-        
+
         const tdStatus = document.createElement("td");
         tdStatus.id = `status-${item.id}`;
         tdStatus.innerHTML = `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> 符合</span>`;
         tr.appendChild(tdStatus);
-        
+
         tbody.appendChild(tr);
     });
 }
@@ -479,7 +574,7 @@ function renderTableRows(items, tbody) {
 // --- Live Validation & Calculations ---
 function performCalculations() {
     let hasMismatches = false;
-    
+
     // Safety calculations looping through all categories
     const categories = ["r1", "r2", "meds", "devices", "instruments"];
     categories.forEach(cat => {
@@ -487,7 +582,7 @@ function performCalculations() {
         activeItems[cat].forEach(item => {
             const inputEl = document.getElementById(`input-${item.id}`);
             if (!inputEl) return;
-            
+
             if (item.type === "number") {
                 validateItem(item.id, getVal(`input-${item.id}`), parseInt(item.defaultVal) || 0);
             } else if (item.type === "checkbox") {
@@ -503,7 +598,7 @@ function performCalculations() {
     let r1KellyA = activeItems.r1.find(i => i.id === "r1_kelly_a") ? getVal("input-r1_kelly_a") : 0;
     let r2Kelly = activeItems.r2.find(i => i.id === "r2_kelly") ? getVal("input-r2_kelly") : 0;
     let totalKelly = r1Kelly + r1KellyA + r2Kelly;
-    
+
     let r1Pillow = activeItems.r1.find(i => i.id === "r1_pillow") ? getVal("input-r1_pillow") : 0;
     let r2Pillow = activeItems.r2.find(i => i.id === "r2_pillow") ? getVal("input-r2_pillow") : 0;
     let totalPillow = r1Pillow + r2Pillow;
@@ -517,7 +612,7 @@ function performCalculations() {
             elements.valKellyTotal.className = "stat-val";
         }
     }
-    
+
     if (elements.valPillowTotal) {
         elements.valPillowTotal.innerText = `${totalPillow} / 52 顆`;
         if (totalPillow !== 52) {
@@ -527,19 +622,19 @@ function performCalculations() {
             elements.valPillowTotal.className = "stat-val";
         }
     }
-    
+
     if (elements.valR1Kelly) {
         elements.valR1Kelly.innerText = `${r1Kelly + r1KellyA} / 36`;
         if ((r1Kelly + r1KellyA) !== 36) elements.valR1Kelly.className = "stat-val error";
         else elements.valR1Kelly.className = "stat-val";
     }
-    
+
     if (elements.valR2Kelly) {
         elements.valR2Kelly.innerText = `${r2Kelly} / 17 (現場18)`;
         if (r2Kelly !== 18 && r2Kelly !== 17) elements.valR2Kelly.className = "stat-val error";
         else elements.valR2Kelly.className = "stat-val";
     }
-    
+
     const rowsWithWarnings = document.querySelectorAll(".row-warning");
     return rowsWithWarnings.length > 0;
 }
@@ -554,7 +649,7 @@ function validateItem(id, actual, expected) {
     const row = document.getElementById(`row-${id}`);
     const statusCell = document.getElementById(`status-${id}`);
     if (!row || !statusCell) return;
-    
+
     if (actual !== expected) {
         row.classList.add("row-warning");
         statusCell.innerHTML = `<span class="badge badge-danger"><i class="fa-solid fa-triangle-exclamation"></i> 不符 (${actual - expected > 0 ? '+' : ''}${actual - expected})</span>`;
@@ -569,7 +664,7 @@ function validateTextItem(id, expectedText) {
     const statusCell = document.getElementById(`status-${id}`);
     const input = document.getElementById(`input-${id}`);
     if (!row || !statusCell || !input) return;
-    
+
     const actualText = input.value.trim();
     if (actualText !== expectedText) {
         row.classList.add("row-warning");
@@ -585,7 +680,7 @@ function validateCheckboxItem(id) {
     const statusCell = document.getElementById(`status-${id}`);
     const input = document.getElementById(`input-${id}`);
     if (!row || !statusCell || !input) return;
-    
+
     const isChecked = input.checked;
     if (!isChecked) {
         row.classList.add("row-warning");
@@ -634,14 +729,14 @@ function lookupEmployee(idVal, nameDisplay, statusBadge) {
     if (!nameDisplay || !statusBadge) return;
     const cleanId = idVal.trim();
     const isSupervisor = statusBadge.id === "sig-supervisor-status";
-    
+
     if (cleanId === "") {
         nameDisplay.innerText = "—";
         statusBadge.className = "badge badge-danger";
         statusBadge.innerHTML = isSupervisor ? `<i class="fa-solid fa-circle-xmark"></i> 未核簽` : `<i class="fa-solid fa-circle-xmark"></i> 未驗證`;
         return;
     }
-    
+
     const emp = employeeDb[cleanId];
     if (emp) {
         nameDisplay.innerText = emp.name;
@@ -677,18 +772,18 @@ function checkSectionMismatch(cat) {
 function updateUiForRole() {
     const activeTabBtn = document.querySelector(".tab-btn.active");
     const isHistoryTab = activeTabBtn ? activeTabBtn.getAttribute("data-target") === "pane-history" : false;
-    
+
     if (currentUserRole === "admin") {
         // Admin Role
         elements.roleBadge.className = "badge role-admin";
         elements.roleBadge.innerHTML = `<i class="fa-solid fa-user-shield"></i> 管理人員`;
         elements.btnSwitchRole.innerHTML = `<i class="fa-solid fa-lock"></i> 登出管理員`;
         elements.btnSwitchRole.title = "登出管理權限";
-        
+
         if (elements.btnManageItemsTrigger) elements.btnManageItemsTrigger.style.display = "inline-flex";
         if (elements.btnManageEmployeesTrigger) elements.btnManageEmployeesTrigger.style.display = "inline-flex";
         if (elements.modalDeleteBtn) elements.modalDeleteBtn.style.display = "inline-flex";
-        
+
         // Show supervisor audit block only for Admin, and hide it on the history tab
         if (elements.sigPanel) {
             elements.sigPanel.style.display = isHistoryTab ? "none" : "block";
@@ -701,11 +796,11 @@ function updateUiForRole() {
         elements.roleBadge.innerHTML = `<i class="fa-solid fa-user-nurse"></i> 一般人員`;
         elements.btnSwitchRole.innerHTML = `<i class="fa-solid fa-key"></i> 切換身分`;
         elements.btnSwitchRole.title = "切換管理人員身分";
-        
+
         if (elements.btnManageItemsTrigger) elements.btnManageItemsTrigger.style.display = "none";
         if (elements.btnManageEmployeesTrigger) elements.btnManageEmployeesTrigger.style.display = "none";
         if (elements.modalDeleteBtn) elements.modalDeleteBtn.style.display = "none";
-        
+
         // Hide supervisor audit block completely for non-admin users
         if (elements.sigPanel) {
             elements.sigPanel.style.display = "none";
@@ -751,12 +846,12 @@ function saveSectionData(category) {
         showToast("請選擇日期！", "warning");
         return;
     }
-    
+
     let nurseId = "";
     let nurseName = "";
     let notes = "";
     let title = "";
-    
+
     if (category === "r1") {
         nurseId = elements.nurseR1Id.value.trim();
         nurseName = employeeDb[nurseId] ? employeeDb[nurseId].name : "";
@@ -783,7 +878,7 @@ function saveSectionData(category) {
         notes = elements.notesInst.value.trim();
         title = "器械與隔離衣";
     }
-    
+
     if (!nurseId) {
         showToast(`請輸入${title}點班人員工號！`, "warning");
         return;
@@ -792,7 +887,7 @@ function saveSectionData(category) {
         showToast(`${title}點班人員工號未驗證！`, "warning");
         return;
     }
-    
+
     if (checkSectionMismatch(category) && !notes) {
         showToast(`${title}清點數量不符，請於備註欄填寫「異常說明或點班數量不符合說明」！`, "warning");
         if (category === "r1") elements.notesR1.focus();
@@ -802,10 +897,10 @@ function saveSectionData(category) {
         else if (category === "instruments") elements.notesInst.focus();
         return;
     }
-    
+
     let logIdx = handoverLogs.findIndex(l => l.date === date);
     let log;
-    
+
     if (logIdx !== -1) {
         log = JSON.parse(JSON.stringify(handoverLogs[logIdx]));
     } else {
@@ -816,7 +911,7 @@ function saveSectionData(category) {
                 initialRecords[item.id] = item.type === "checkbox" ? (item.defaultVal === "checked" ? "已確認" : "未確認") : item.defaultVal;
             });
         });
-        
+
         log = {
             id: "log_" + Date.now(),
             date: date,
@@ -843,7 +938,7 @@ function saveSectionData(category) {
             timestamp: new Date().toLocaleString()
         };
     }
-    
+
     activeItems[category].forEach(item => {
         const inputEl = document.getElementById(`input-${item.id}`);
         if (inputEl) {
@@ -854,7 +949,7 @@ function saveSectionData(category) {
             }
         }
     });
-    
+
     if (category === "r1") {
         log.r1NurseId = nurseId;
         log.r1NurseName = nurseName;
@@ -876,7 +971,7 @@ function saveSectionData(category) {
         log.instNurseName = nurseName;
         log.notesInst = notes;
     }
-    
+
     let hasDiscrepancy = false;
     const allCats = ["r1", "r2", "meds", "devices", "instruments"];
     allCats.forEach(c => {
@@ -895,16 +990,19 @@ function saveSectionData(category) {
     });
     log.hasDiscrepancy = hasDiscrepancy;
     log.timestamp = new Date().toLocaleString();
-    
+
     if (logIdx !== -1) {
         handoverLogs[logIdx] = log;
     } else {
         handoverLogs.push(log);
     }
-    
+
     localStorage.setItem("handoverLogs", JSON.stringify(handoverLogs));
     showToast(`${title}點班提交成功！`, "success");
-    
+
+    // Sync to Cloud
+    postToCloud({ action: "saveLog", log: log });
+
     renderHistoryCalendar();
     renderHistoryList();
     loadRecordForDate(date);
@@ -914,7 +1012,7 @@ function handleSupervisorSubmit() {
     const supervisorId = elements.nurseSupervisorId.value.trim();
     const supervisorName = employeeDb[supervisorId] ? employeeDb[supervisorId].name : "";
     const notesSupervisor = elements.notesSupervisor.value.trim();
-    
+
     if (!supervisorId) {
         showToast("請輸入單位主管工號！", "warning");
         return;
@@ -923,16 +1021,16 @@ function handleSupervisorSubmit() {
         showToast("單位主管工號未驗證！", "warning");
         return;
     }
-    
+
     const now = new Date();
     const rocYear = now.getFullYear() - 1911;
     const rocDateStr = `${rocYear}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
-    
+
     if (elements.chkBatchAudit.checked) {
         // Batch Audit Range
         const startStr = elements.batchStartDate.value;
         const endStr = elements.batchEndDate.value;
-        
+
         if (!startStr || !endStr) {
             showToast("請選擇批次查核的開始與結束日期！", "warning");
             return;
@@ -941,16 +1039,17 @@ function handleSupervisorSubmit() {
             showToast("開始日期不能晚於結束日期！", "warning");
             return;
         }
-        
+
         const start = new Date(startStr);
         const end = new Date(endStr);
         let count = 0;
-        
+        const updatedLogs = [];
+
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().slice(0, 10);
             let logIdx = handoverLogs.findIndex(l => l.date === dateStr);
             let log;
-            
+
             if (logIdx !== -1) {
                 log = JSON.parse(JSON.stringify(handoverLogs[logIdx]));
                 log.supervisorNurseId = supervisorId;
@@ -967,7 +1066,7 @@ function handleSupervisorSubmit() {
                         initialRecords[item.id] = item.type === "checkbox" ? (item.defaultVal === "checked" ? "已確認" : "未確認") : item.defaultVal;
                     });
                 });
-                
+
                 log = {
                     id: "log_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
                     date: dateStr,
@@ -987,11 +1086,17 @@ function handleSupervisorSubmit() {
                 };
                 handoverLogs.push(log);
             }
+            updatedLogs.push(log);
             count++;
         }
-        
+
         localStorage.setItem("handoverLogs", JSON.stringify(handoverLogs));
         showToast(`成功批次核簽 ${count} 日之點班單！`, "success");
+
+        // Sync batch to Cloud
+        if (updatedLogs.length > 0) {
+            postToCloud({ action: "saveLogs", logs: updatedLogs });
+        }
     } else {
         // Single Day Audit
         const date = elements.dateInput.value;
@@ -999,10 +1104,10 @@ function handleSupervisorSubmit() {
             showToast("請選擇日期！", "warning");
             return;
         }
-        
+
         let logIdx = handoverLogs.findIndex(l => l.date === date);
         let log;
-        
+
         if (logIdx !== -1) {
             log = JSON.parse(JSON.stringify(handoverLogs[logIdx]));
             log.supervisorNurseId = supervisorId;
@@ -1019,7 +1124,7 @@ function handleSupervisorSubmit() {
                     initialRecords[item.id] = item.type === "checkbox" ? (item.defaultVal === "checked" ? "已確認" : "未確認") : item.defaultVal;
                 });
             });
-            
+
             log = {
                 id: "log_" + Date.now(),
                 date: date,
@@ -1039,11 +1144,14 @@ function handleSupervisorSubmit() {
             };
             handoverLogs.push(log);
         }
-        
+
         localStorage.setItem("handoverLogs", JSON.stringify(handoverLogs));
         showToast("主管查核此日核簽成功！", "success");
+
+        // Sync to Cloud
+        postToCloud({ action: "saveLog", log: log });
     }
-    
+
     renderHistoryCalendar();
     renderHistoryList();
     if (elements.dateInput) {
@@ -1055,7 +1163,7 @@ function handleSupervisorSubmit() {
 function initHistoryTab() {
     renderHistoryCalendar();
     renderHistoryList();
-    
+
     elements.monthSelect.addEventListener("change", () => {
         renderHistoryCalendar();
         renderHistoryList();
@@ -1065,12 +1173,12 @@ function initHistoryTab() {
 function renderHistoryCalendar() {
     const selectedMonthStr = elements.monthSelect.value;
     if (!selectedMonthStr) return;
-    
+
     const [year, month] = selectedMonthStr.split("-").map(Number);
     elements.calendarMonthTitle.innerText = `${year}年 ${month}月 點班曆`;
-    
+
     elements.calendarGrid.innerHTML = "";
-    
+
     const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
     weekdays.forEach(day => {
         const header = document.createElement("div");
@@ -1078,36 +1186,36 @@ function renderHistoryCalendar() {
         header.innerText = day;
         elements.calendarGrid.appendChild(header);
     });
-    
+
     const firstDay = new Date(year, month - 1, 1).getDay();
     const daysInMonth = new Date(year, month, 0).getDate();
-    
+
     for (let i = 0; i < firstDay; i++) {
         const empty = document.createElement("div");
         elements.calendarGrid.appendChild(empty);
     }
-    
+
     const todayStr = new Date().toISOString().slice(0, 10);
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
         const cellDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const cell = document.createElement("div");
         cell.className = "calendar-cell active-day";
         if (cellDate === todayStr) cell.classList.add("today");
-        
+
         const dayNum = document.createElement("span");
         dayNum.className = "day-num";
         dayNum.innerText = day;
         cell.appendChild(dayNum);
-        
+
         const dayLogs = handoverLogs.filter(log => log.date === cellDate);
         const dotsContainer = document.createElement("div");
         dotsContainer.className = "shift-status-container";
-        
+
         dayLogs.forEach(log => {
             const dot = document.createElement("span");
             dot.className = log.hasDiscrepancy ? "dot dot-error" : "dot dot-day";
-            
+
             // Format mouseover text showing checkers for each of the 5 roles
             const checkers = [];
             if (log.r1NurseName) checkers.push(`第一室: ${log.r1NurseName.split(' ')[0]}`);
@@ -1116,23 +1224,23 @@ function renderHistoryCalendar() {
             if (log.devicesNurseName) checkers.push(`血氧機: ${log.devicesNurseName.split(' ')[0]}`);
             if (log.instNurseName) checkers.push(`器械: ${log.instNurseName.split(' ')[0]}`);
             const checkersStr = checkers.length > 0 ? checkers.join('\n- ') : '無點班人員';
-            
+
             dot.title = `點班員:\n- ${checkersStr}\n${log.hasDiscrepancy ? '(申報異常)' : '(符合預設)'}`;
             dotsContainer.appendChild(dot);
         });
-        
+
         cell.appendChild(dotsContainer);
-        
+
         cell.addEventListener("click", () => {
             if (dayLogs.length > 0) {
-                openRecordDetails(dayLogs[0]); 
+                openRecordDetails(dayLogs[0]);
             } else {
                 elements.dateInput.value = cellDate;
                 showToast(`已自動選擇日期：${cellDate}，您可以開始填寫此日點班單。`, "info");
-                elements.tabBtns[0].click(); 
+                elements.tabBtns[0].click();
             }
         });
-        
+
         elements.calendarGrid.appendChild(cell);
     }
 }
@@ -1140,25 +1248,25 @@ function renderHistoryCalendar() {
 function renderHistoryList() {
     const selectedMonthStr = elements.monthSelect.value;
     elements.logListContainer.innerHTML = "";
-    
+
     const filteredLogs = handoverLogs
         .filter(log => log.date.startsWith(selectedMonthStr))
         .sort((a, b) => b.date.localeCompare(a.date));
-        
+
     if (filteredLogs.length === 0) {
         elements.logListContainer.innerHTML = `<div style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.95rem;">本月尚無點班交接紀錄。</div>`;
         return;
     }
-    
+
     filteredLogs.forEach(log => {
         const item = document.createElement("div");
         item.className = "log-item";
-        
+
         const iconColorClass = log.hasDiscrepancy ? "text-danger" : "text-success";
-        const statusBadge = log.hasDiscrepancy 
-            ? `<span class="badge badge-danger"><i class="fa-solid fa-triangle-exclamation"></i> 異常申報</span>` 
+        const statusBadge = log.hasDiscrepancy
+            ? `<span class="badge badge-danger"><i class="fa-solid fa-triangle-exclamation"></i> 異常申報</span>`
             : `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> 正常無誤</span>`;
-            
+
         // Build checker list
         const checkers = [];
         if (log.r1NurseName) checkers.push(`1R: ${log.r1NurseName.split(' ')[0]}`);
@@ -1177,7 +1285,7 @@ function renderHistoryList() {
         if (log.notesInst) notes.push(`器: ${log.notesInst}`);
         if (log.notesSupervisor) notes.push(`主管: ${log.notesSupervisor}`);
         const notesStr = notes.join('; ');
-            
+
         item.innerHTML = `
             <div class="log-info">
                 <h4 style="display:flex; align-items:center; gap:8px;">
@@ -1194,7 +1302,7 @@ function renderHistoryList() {
                 <i class="fa-solid fa-chevron-right" style="color: var(--text-muted)"></i>
             </div>
         `;
-        
+
         item.addEventListener("click", () => openRecordDetails(log));
         elements.logListContainer.appendChild(item);
     });
@@ -1203,7 +1311,7 @@ function renderHistoryList() {
 function openRecordDetails(log) {
     selectedLogIdForModal = log.id;
     elements.modalTitle.innerText = `${log.date} 點班明細`;
-    
+
     let detailsHtml = `
         <div style="background: var(--bg-main); padding: 14px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--border-color); display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; font-size: 0.92rem;">
             <div><strong>點班日期:</strong> ${log.date}</div>
@@ -1239,7 +1347,7 @@ function openRecordDetails(log) {
             </div>
         </div>
     `;
-    
+
     // Notes
     let hasNotes = log.notesR1 || log.notesR2 || log.notesMeds || log.notesDevices || log.notesInst || log.notesSupervisor;
     if (hasNotes) {
@@ -1255,9 +1363,9 @@ function openRecordDetails(log) {
             </div>
         `;
     }
-    
+
     detailsHtml += `<h4>清點明細數據：</h4>`;
-    
+
     // Loop active items categories
     const categories = [
         { title: "第一洗腎室", items: activeItems.r1 },
@@ -1266,7 +1374,7 @@ function openRecordDetails(log) {
         { title: "儀器設備", items: activeItems.devices },
         { title: "包盤器械與布品", items: activeItems.instruments }
     ];
-    
+
     categories.forEach(cat => {
         let catRows = "";
         if (!cat.items || cat.items.length === 0) {
@@ -1275,10 +1383,10 @@ function openRecordDetails(log) {
             cat.items.forEach(item => {
                 const actualVal = log.records[item.id] || "N/A";
                 const isCheckbox = item.type === "checkbox";
-                
+
                 let mismatch = false;
                 let diffText = "";
-                
+
                 if (isCheckbox) {
                     mismatch = actualVal === "未確認";
                 } else if (item.type === "number") {
@@ -1291,10 +1399,10 @@ function openRecordDetails(log) {
                 } else {
                     mismatch = actualVal !== item.defaultVal;
                 }
-                
+
                 const warningStyle = mismatch ? 'style="background-color: var(--danger-light); color: var(--danger); font-weight:600;"' : '';
                 const statusLabel = mismatch ? `<span class="badge badge-danger"><i class="fa-solid fa-circle-xmark"></i> 不符${diffText}</span>` : `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> 符合</span>`;
-                
+
                 catRows += `
                     <tr ${mismatch ? 'class="row-warning"' : ''}>
                         <td style="padding: 8px 12px; font-size: 0.88rem;">${item.name}</td>
@@ -1305,7 +1413,7 @@ function openRecordDetails(log) {
                 `;
             });
         }
-        
+
         detailsHtml += `
             <div style="margin-top: 14px; margin-bottom: 14px;">
                 <h5 style="margin-bottom: 6px; color: var(--primary); font-size: 0.95rem;">${cat.title}</h5>
@@ -1325,7 +1433,7 @@ function openRecordDetails(log) {
             </div>
         `;
     });
-    
+
     elements.modalBody.innerHTML = detailsHtml;
     elements.detailModal.classList.add("active");
 }
@@ -1337,12 +1445,17 @@ function closeDetailsModal() {
 
 function handleDeleteLog() {
     if (!selectedLogIdForModal) return;
-    
+
     if (confirm("您確定要刪除這筆點班紀錄嗎？此操作將無法還原！")) {
-        handoverLogs = handoverLogs.filter(log => log.id !== selectedLogIdForModal);
+        const targetId = selectedLogIdForModal;
+        handoverLogs = handoverLogs.filter(log => log.id !== targetId);
         localStorage.setItem("handoverLogs", JSON.stringify(handoverLogs));
         closeDetailsModal();
         showToast("紀錄已刪除", "info");
+
+        // Sync to Cloud
+        postToCloud({ action: "deleteLog", logId: targetId });
+
         renderHistoryCalendar();
         renderHistoryList();
     }
@@ -1367,10 +1480,10 @@ function renderEmployeeTable() {
         const emp = employeeDb[id];
         const name = emp ? emp.name : "";
         const role = emp ? (emp.role || "staff") : "staff";
-        const roleText = role === "admin" 
-            ? '<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; font-size: 0.8rem; font-weight: bold; padding: 2px 8px;">管理人員</span>' 
+        const roleText = role === "admin"
+            ? '<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; font-size: 0.8rem; font-weight: bold; padding: 2px 8px;">管理人員</span>'
             : '<span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--secondary); font-size: 0.8rem; font-weight: bold; padding: 2px 8px;">一般人員</span>';
-            
+
         const tr = document.createElement("tr");
         tr.innerHTML = `
             <td style="padding: 8px 12px; font-weight: 600;">${id}</td>
@@ -1386,7 +1499,7 @@ function renderEmployeeTable() {
     });
 }
 
-window.deleteEmployee = function(id) {
+window.deleteEmployee = function (id) {
     const emp = employeeDb[id];
     const name = emp ? emp.name : "";
     if (confirm(`確定要刪除員工 [${id}] ${name} 嗎？`)) {
@@ -1394,6 +1507,9 @@ window.deleteEmployee = function(id) {
         localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
         renderEmployeeTable();
         triggerAllLookups();
+
+        // Sync to Cloud
+        postToCloud({ action: "syncEmployees", employees: employeeDb });
     }
 };
 
@@ -1402,44 +1518,47 @@ function handleAddEmployee() {
     const name = elements.newEmpName.value.trim();
     const roleSelect = document.getElementById("new-emp-role");
     const role = roleSelect ? roleSelect.value : "staff";
-    
+
     if (!id || !name) {
         showToast("請填寫工號與姓名！", "warning");
         return;
     }
-    
+
     employeeDb[id] = { name: name, role: role };
     localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
     renderEmployeeTable();
-    
+
     elements.newEmpId.value = "";
     elements.newEmpName.value = "";
     if (roleSelect) roleSelect.value = "staff"; // reset to default
     showToast("員工新增成功！", "success");
     triggerAllLookups();
+
+    // Sync to Cloud
+    postToCloud({ action: "syncEmployees", employees: employeeDb });
 }
 
 // File Batch Import (CSV / Excel)
 function handleFileImport(e) {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const extension = file.name.split('.').pop().toLowerCase();
     const reader = new FileReader();
-    
+
     if (extension === "csv") {
-        reader.onload = function(evt) {
+        reader.onload = function (evt) {
             parseCSV(evt.target.result);
         };
         reader.readAsText(file, "UTF-8");
     } else if (extension === "xlsx" || extension === "xls") {
-        reader.onload = function(evt) {
+        reader.onload = function (evt) {
             try {
                 const data = new Uint8Array(evt.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
+                const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 parseExcelJson(jsonData);
             } catch (err) {
                 showToast("Excel 解析錯誤：" + err.message, "warning");
@@ -1455,14 +1574,14 @@ function handleFileImport(e) {
 function parseCSV(text) {
     const lines = text.split(/\r?\n/);
     let count = 0;
-    
+
     lines.forEach((line, idx) => {
         if (line.trim() === "") return;
-        const columns = line.split(/,|;/); 
+        const columns = line.split(/,|;/);
         if (columns.length >= 2) {
             const id = columns[0].trim().replace(/"/g, '');
             const name = columns[1].trim().replace(/"/g, '');
-            
+
             if (idx === 0 && (id.toLowerCase().includes("id") || id.includes("工號"))) {
                 return;
             }
@@ -1472,12 +1591,15 @@ function parseCSV(text) {
             }
         }
     });
-    
+
     if (count > 0) {
         localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
         renderEmployeeTable();
         showToast(`批次導入成功！共匯入 ${count} 筆員工資料。`, "success");
         triggerAllLookups();
+
+        // Sync to Cloud
+        postToCloud({ action: "syncEmployees", employees: employeeDb });
     } else {
         showToast("CSV 解析失敗，未發現有效資料！請使用「工號,姓名」之格式。", "warning");
     }
@@ -1489,7 +1611,7 @@ function parseExcelJson(rows) {
         if (!row || row.length < 2) return;
         const id = String(row[0]).trim();
         const name = String(row[1]).trim();
-        
+
         if (idx === 0 && (id.toLowerCase().includes("id") || id.includes("工號"))) {
             return;
         }
@@ -1498,12 +1620,15 @@ function parseExcelJson(rows) {
             count++;
         }
     });
-    
+
     if (count > 0) {
         localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
         renderEmployeeTable();
         showToast(`Excel 批次導入成功！共匯入 ${count} 筆員工資料。`, "success");
         triggerAllLookups();
+
+        // Sync to Cloud
+        postToCloud({ action: "syncEmployees", employees: employeeDb });
     } else {
         showToast("Excel 解析失敗，首張工作表中未偵測到工號與姓名！", "warning");
     }
@@ -1521,7 +1646,7 @@ function triggerAllLookups() {
 // --- Checklist Items Schema Actions (Manage Checklist Items) ---
 function openItemsModal() {
     renderConfigItemsList();
-    
+
     // Load print footers to inputs
     const footers = JSON.parse(localStorage.getItem("printFooters")) || DEFAULT_PRINT_FOOTERS;
     if (document.getElementById("edit-footer-sheet1")) {
@@ -1533,7 +1658,7 @@ function openItemsModal() {
     if (document.getElementById("edit-footer-sheet3")) {
         document.getElementById("edit-footer-sheet3").value = footers.sheet3 || "";
     }
-    
+
     elements.itemsModal.classList.add("active");
 }
 
@@ -1546,12 +1671,12 @@ function closeItemsModal() {
 function renderConfigItemsList() {
     const cat = elements.itemCatSelect.value;
     elements.tbodyChecklistItems.innerHTML = "";
-    
+
     if (!activeItems[cat] || activeItems[cat].length === 0) {
         elements.tbodyChecklistItems.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:10px;">該類別目前無任何點班品項</td></tr>`;
         return;
     }
-    
+
     activeItems[cat].forEach((item, idx) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -1573,22 +1698,22 @@ function renderConfigItemsList() {
     });
 }
 
-window.saveItemEdit = function(cat, itemId) {
+window.saveItemEdit = function (cat, itemId) {
     const nameVal = document.getElementById(`edit-name-${itemId}`).value.trim();
     const defaultVal = document.getElementById(`edit-default-${itemId}`).value.trim();
     const typeVal = document.getElementById(`edit-type-${itemId}`).value;
-    
+
     if (!nameVal || !defaultVal) {
         showToast("品項名稱與預設數量不可為空！", "warning");
         return;
     }
-    
+
     const item = activeItems[cat].find(i => i.id === itemId);
     if (item) {
         item.name = nameVal;
         item.defaultVal = defaultVal;
         item.type = typeVal;
-        
+
         localStorage.setItem("checklistItems", JSON.stringify(activeItems));
         showToast("品項修改成功！", "success");
         renderAllChecklists();
@@ -1596,7 +1721,7 @@ window.saveItemEdit = function(cat, itemId) {
     }
 };
 
-window.deleteItem = function(cat, itemId) {
+window.deleteItem = function (cat, itemId) {
     if (confirm("確認要刪除此點班品項嗎？這會直接移除此表單欄位。")) {
         activeItems[cat] = activeItems[cat].filter(i => i.id !== itemId);
         localStorage.setItem("checklistItems", JSON.stringify(activeItems));
@@ -1612,26 +1737,26 @@ function handleAddChecklistItem() {
     const name = elements.newItemName.value.trim();
     const defaultVal = elements.newItemDefault.value.trim();
     const type = elements.newItemType.value;
-    
+
     if (!name || !defaultVal) {
         showToast("請填寫完整的品項名稱與預設值！", "warning");
         return;
     }
-    
+
     const newItem = {
         id: `item_${Date.now()}`,
         name: name,
         defaultVal: defaultVal,
         type: type
     };
-    
+
     activeItems[cat].push(newItem);
     localStorage.setItem("checklistItems", JSON.stringify(activeItems));
     showToast("品項新增成功！", "success");
-    
+
     elements.newItemName.value = "";
     elements.newItemDefault.value = "";
-    
+
     renderConfigItemsList();
     renderAllChecklists();
     performCalculations();
@@ -1642,7 +1767,7 @@ function generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr) 
         if (!fullName) return "";
         return fullName.split(" ")[0];
     };
-    
+
     // Build array of supervisor sign-off info for days 1 to daysInMonth
     const daySupervisor = Array(daysInMonth + 1).fill(null);
     monthLogs.forEach(log => {
@@ -1659,13 +1784,13 @@ function generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr) 
             }
         }
     });
-    
+
     const isSameSupervisor = (sig1, sig2) => {
         if (!sig1 && !sig2) return true;
         if (!sig1 || !sig2) return false;
         return sig1.name === sig2.name && sig1.date === sig2.date;
     };
-    
+
     let html = "";
     let i = 1;
     while (i <= daysInMonth) {
@@ -1673,10 +1798,10 @@ function generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr) 
         while (j + 1 <= daysInMonth && isSameSupervisor(daySupervisor[i], daySupervisor[j + 1])) {
             j++;
         }
-        
+
         const span = j - i + 1;
         const item = daySupervisor[i];
-        
+
         if (item) {
             html += `<td colspan="${span}" style="font-weight: bold; background-color: #f0fdf4 !important; color: #166534 !important; font-size: 7.5pt !important; text-align: center !important; print-color-adjust: exact; -webkit-print-color-adjust: exact;" title="核簽日期: ${item.date}">
                 ${item.name}${item.date ? `(${item.date})` : ''}
@@ -1684,10 +1809,10 @@ function generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr) 
         } else {
             html += `<td colspan="${span}"></td>`;
         }
-        
+
         i = j + 1;
     }
-    
+
     return html;
 }
 
@@ -1696,18 +1821,18 @@ function generateMonthlyReportHTML(year, month) {
     const daysInMonth = new Date(year, month, 0).getDate();
     const selectedMonthStr = `${year}-${String(month).padStart(2, '0')}`;
     const monthLogs = handoverLogs.filter(log => log.date.startsWith(selectedMonthStr));
-    
+
     const logsMap = {};
     monthLogs.forEach(log => {
         const day = parseInt(log.date.split("-")[2], 10);
         logsMap[day] = log;
     });
-    
+
     const getCleanName = (fullName) => {
         if (!fullName) return "";
         return fullName.split(" ")[0];
     };
-    
+
     const activeDate = elements.dateInput ? elements.dateInput.value : "";
     let supervisorSig = "______________________";
     if (activeDate && activeDate.startsWith(selectedMonthStr)) {
@@ -1722,13 +1847,13 @@ function generateMonthlyReportHTML(year, month) {
             supervisorSig = getCleanName(signedLog.supervisorNurseName);
         }
     }
-    
+
     // Load custom footers from LocalStorage
     const footers = JSON.parse(localStorage.getItem("printFooters")) || DEFAULT_PRINT_FOOTERS;
     const sheet1FooterHtml = footers.sheet1 ? footers.sheet1.split('\n').map(line => `<div>${line}</div>`).join('') : "";
     const sheet2FooterHtml = footers.sheet2 ? footers.sheet2.split('\n').map(line => `<div>${line}</div>`).join('') : "";
     const sheet3FooterHtml = footers.sheet3 ? footers.sheet3.split('\n').map(line => `<div>${line}</div>`).join('') : "";
-    
+
     // Build Sheet 1: 一般物資點班單 (r1 and r2)
     let sheet1Html = `
     <div class="monthly-report-page">
@@ -1744,13 +1869,13 @@ function generateMonthlyReportHTML(year, month) {
                 <tr>
                     <th class="item-name-col">品項</th>
                     <th class="default-val-col">數量</th>
-                    ${Array.from({length: daysInMonth}, (_, i) => `<th class="day-col">${i+1}</th>`).join('')}
+                    ${Array.from({ length: daysInMonth }, (_, i) => `<th class="day-col">${i + 1}</th>`).join('')}
                 </tr>
             </thead>
             <tbody>
-                <tr class="category-row"><td colspan="${daysInMonth+2}">第一洗腎室</td></tr>
+                <tr class="category-row"><td colspan="${daysInMonth + 2}">第一洗腎室</td></tr>
     `;
-    
+
     activeItems.r1.forEach(item => {
         let displayName = item.name;
         if (item.id === "r1_DL_expiry" || item.id === "r1_dl_expiry") {
@@ -1779,20 +1904,20 @@ function generateMonthlyReportHTML(year, month) {
         }
         sheet1Html += `</tr>`;
     });
-    
+
     sheet1Html += `<tr class="signature-row"><td class="sig-label-col">點班人員簽名</td><td></td>`;
     for (let d = 1; d <= daysInMonth; d++) {
         const log = logsMap[d];
         sheet1Html += `<td class="day-col">${log ? getCleanName(log.r1NurseName) : ''}</td>`;
     }
     sheet1Html += `</tr>`;
-    
+
     // Supervisor Row for R1
     sheet1Html += `<tr class="signature-row"><td class="sig-label-col" style="color: var(--primary) !important;">主管查核</td><td></td>`;
     sheet1Html += generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr);
     sheet1Html += `</tr>`;
-    
-    sheet1Html += `<tr class="category-row"><td colspan="${daysInMonth+2}">第二洗腎室</td></tr>`;
+
+    sheet1Html += `<tr class="category-row"><td colspan="${daysInMonth + 2}">第二洗腎室</td></tr>`;
     activeItems.r2.forEach(item => {
         sheet1Html += `<tr><td class="item-name-col">${item.name}</td><td class="default-val-col">${item.type === 'checkbox' ? '確認' : item.defaultVal}</td>`;
         for (let d = 1; d <= daysInMonth; d++) {
@@ -1816,24 +1941,24 @@ function generateMonthlyReportHTML(year, month) {
         }
         sheet1Html += `</tr>`;
     });
-    
+
     sheet1Html += `<tr class="signature-row"><td class="sig-label-col">點班人員簽名</td><td></td>`;
     for (let d = 1; d <= daysInMonth; d++) {
         const log = logsMap[d];
         sheet1Html += `<td class="day-col">${log ? getCleanName(log.r2NurseName) : ''}</td>`;
     }
     sheet1Html += `</tr>`;
-    
+
     // Supervisor Row for R2
     sheet1Html += `<tr class="signature-row"><td class="sig-label-col" style="color: var(--primary) !important;">主管查核</td><td></td>`;
     sheet1Html += generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr);
     sheet1Html += `</tr>`;
-    
+
     sheet1Html += `
             </tbody>
         </table>
     `;
-    
+
     let sheet1Notes = [];
     for (let d = 1; d <= daysInMonth; d++) {
         const log = logsMap[d];
@@ -1843,7 +1968,7 @@ function generateMonthlyReportHTML(year, month) {
             if (log.notesSupervisor) sheet1Notes.push(`<li><strong>${month}/${d} (主管意見):</strong> ${log.notesSupervisor} (${getCleanName(log.supervisorNurseName)})</li>`);
         }
     }
-    
+
     sheet1Html += `
         <div class="monthly-footer-notes">
             ${sheet1FooterHtml}
@@ -1857,7 +1982,7 @@ function generateMonthlyReportHTML(year, month) {
         </div>
     </div>
     `;
-    
+
     // Build Sheet 2: 常備藥品與血氧機點班單 (meds and devices)
     let sheet2Html = `
     <div class="monthly-report-page">
@@ -1873,13 +1998,13 @@ function generateMonthlyReportHTML(year, month) {
                 <tr>
                     <th class="item-name-col">品項</th>
                     <th class="default-val-col">數量</th>
-                    ${Array.from({length: daysInMonth}, (_, i) => `<th class="day-col">${i+1}</th>`).join('')}
+                    ${Array.from({ length: daysInMonth }, (_, i) => `<th class="day-col">${i + 1}</th>`).join('')}
                 </tr>
             </thead>
             <tbody>
-                <tr class="category-row"><td colspan="${daysInMonth+2}">常備藥品清點</td></tr>
+                <tr class="category-row"><td colspan="${daysInMonth + 2}">常備藥品清點</td></tr>
     `;
-    
+
     activeItems.meds.forEach(item => {
         sheet2Html += `<tr><td class="item-name-col">${item.name}</td><td class="default-val-col">${item.type === 'checkbox' ? '確認' : item.defaultVal}</td>`;
         for (let d = 1; d <= daysInMonth; d++) {
@@ -1903,20 +2028,20 @@ function generateMonthlyReportHTML(year, month) {
         }
         sheet2Html += `</tr>`;
     });
-    
+
     sheet2Html += `<tr class="signature-row"><td class="sig-label-col">常備藥點班人員簽名</td><td></td>`;
     for (let d = 1; d <= daysInMonth; d++) {
         const log = logsMap[d];
         sheet2Html += `<td class="day-col">${log ? getCleanName(log.medsNurseName) : ''}</td>`;
     }
     sheet2Html += `</tr>`;
-    
+
     // Supervisor Row for Meds
     sheet2Html += `<tr class="signature-row"><td class="sig-label-col" style="color: var(--primary) !important;">主管查核</td><td></td>`;
     sheet2Html += generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr);
     sheet2Html += `</tr>`;
-    
-    sheet2Html += `<tr class="category-row"><td colspan="${daysInMonth+2}">儀器設備清點</td></tr>`;
+
+    sheet2Html += `<tr class="category-row"><td colspan="${daysInMonth + 2}">儀器設備清點</td></tr>`;
     activeItems.devices.forEach(item => {
         sheet2Html += `<tr><td class="item-name-col">${item.name}</td><td class="default-val-col">${item.type === 'checkbox' ? '確認' : item.defaultVal}</td>`;
         for (let d = 1; d <= daysInMonth; d++) {
@@ -1940,24 +2065,24 @@ function generateMonthlyReportHTML(year, month) {
         }
         sheet2Html += `</tr>`;
     });
-    
+
     sheet2Html += `<tr class="signature-row"><td class="sig-label-col">血氧機點班人員簽名</td><td></td>`;
     for (let d = 1; d <= daysInMonth; d++) {
         const log = logsMap[d];
         sheet2Html += `<td class="day-col">${log ? getCleanName(log.devicesNurseName) : ''}</td>`;
     }
     sheet2Html += `</tr>`;
-    
+
     // Supervisor Row for Devices
     sheet2Html += `<tr class="signature-row"><td class="sig-label-col" style="color: var(--primary) !important;">主管查核</td><td></td>`;
     sheet2Html += generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr);
     sheet2Html += `</tr>`;
-    
+
     sheet2Html += `
             </tbody>
         </table>
     `;
-    
+
     let sheet2Notes = [];
     for (let d = 1; d <= daysInMonth; d++) {
         const log = logsMap[d];
@@ -1967,7 +2092,7 @@ function generateMonthlyReportHTML(year, month) {
             if (log.notesSupervisor) sheet2Notes.push(`<li><strong>${month}/${d} (主管意見):</strong> ${log.notesSupervisor} (${getCleanName(log.supervisorNurseName)})</li>`);
         }
     }
-    
+
     sheet2Html += `
         <div class="monthly-footer-notes">
             ${sheet2FooterHtml}
@@ -1981,7 +2106,7 @@ function generateMonthlyReportHTML(year, month) {
         </div>
     </div>
     `;
-    
+
     // Build Sheet 3: 器械與布品點班單 (instruments)
     let sheet3Html = `
     <div class="monthly-report-page">
@@ -1997,64 +2122,64 @@ function generateMonthlyReportHTML(year, month) {
                 <tr>
                     <th class="item-name-col">品項</th>
                     <th class="default-val-col">數量</th>
-                    ${Array.from({length: daysInMonth}, (_, i) => `<th class="day-col">${i+1}</th>`).join('')}
+                    ${Array.from({ length: daysInMonth }, (_, i) => `<th class="day-col">${i + 1}</th>`).join('')}
                 </tr>
             </thead>
             <tbody>
-                <tr class="category-row"><td colspan="${daysInMonth+2}">包盤器械及布品項目</td></tr>
+                <tr class="category-row"><td colspan="${daysInMonth + 2}">包盤器械及布品項目</td></tr>
        `;
-       
-       activeItems.instruments.forEach(item => {
-           sheet3Html += `<tr><td class="item-name-col">${item.name}</td><td class="default-val-col">${item.type === 'checkbox' ? '確認' : item.defaultVal}</td>`;
-           for (let d = 1; d <= daysInMonth; d++) {
-               const log = logsMap[d];
-               let val = "";
-               if (log && log.records[item.id] !== undefined) {
-                   const saved = log.records[item.id];
-                   if (item.type === 'checkbox') {
-                       val = saved === '已確認' ? 'V' : '';
-                   } else {
-                       val = saved;
-                   }
-               }
-               let style = "";
-               if (val !== "" && item.type !== 'checkbox') {
-                   if (val !== item.defaultVal) {
-                       style = `style="color:red; font-weight:bold; text-decoration:underline;"`;
-                   }
-               }
-               sheet3Html += `<td class="day-col" ${style}>${val}</td>`;
-           }
-           sheet3Html += `</tr>`;
-       });
-       
-       sheet3Html += `<tr class="signature-row"><td class="sig-label-col">器械點班人員簽名</td><td></td>`;
-       for (let d = 1; d <= daysInMonth; d++) {
-           const log = logsMap[d];
-           sheet3Html += `<td class="day-col">${log ? getCleanName(log.instNurseName) : ''}</td>`;
-       }
-       sheet3Html += `</tr>`;
-       
-       // Supervisor Row for Instruments
-       sheet3Html += `<tr class="signature-row"><td class="sig-label-col" style="color: var(--primary) !important;">主管查核</td><td></td>`;
-       sheet3Html += generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr);
-       sheet3Html += `</tr>`;
-       
-       sheet3Html += `
+
+    activeItems.instruments.forEach(item => {
+        sheet3Html += `<tr><td class="item-name-col">${item.name}</td><td class="default-val-col">${item.type === 'checkbox' ? '確認' : item.defaultVal}</td>`;
+        for (let d = 1; d <= daysInMonth; d++) {
+            const log = logsMap[d];
+            let val = "";
+            if (log && log.records[item.id] !== undefined) {
+                const saved = log.records[item.id];
+                if (item.type === 'checkbox') {
+                    val = saved === '已確認' ? 'V' : '';
+                } else {
+                    val = saved;
+                }
+            }
+            let style = "";
+            if (val !== "" && item.type !== 'checkbox') {
+                if (val !== item.defaultVal) {
+                    style = `style="color:red; font-weight:bold; text-decoration:underline;"`;
+                }
+            }
+            sheet3Html += `<td class="day-col" ${style}>${val}</td>`;
+        }
+        sheet3Html += `</tr>`;
+    });
+
+    sheet3Html += `<tr class="signature-row"><td class="sig-label-col">器械點班人員簽名</td><td></td>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+        const log = logsMap[d];
+        sheet3Html += `<td class="day-col">${log ? getCleanName(log.instNurseName) : ''}</td>`;
+    }
+    sheet3Html += `</tr>`;
+
+    // Supervisor Row for Instruments
+    sheet3Html += `<tr class="signature-row"><td class="sig-label-col" style="color: var(--primary) !important;">主管查核</td><td></td>`;
+    sheet3Html += generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr);
+    sheet3Html += `</tr>`;
+
+    sheet3Html += `
                </tbody>
            </table>
        `;
-       
-       let sheet3Notes = [];
-       for (let d = 1; d <= daysInMonth; d++) {
-           const log = logsMap[d];
-           if (log) {
-               if (log.notesInst) sheet3Notes.push(`<li><strong>${month}/${d} (器械):</strong> ${log.notesInst} (${getCleanName(log.instNurseName)})</li>`);
-               if (log.notesSupervisor) sheet3Notes.push(`<li><strong>${month}/${d} (主管意見):</strong> ${log.notesSupervisor} (${getCleanName(log.supervisorNurseName)})</li>`);
-           }
-       }
-       
-       sheet3Html += `
+
+    let sheet3Notes = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+        const log = logsMap[d];
+        if (log) {
+            if (log.notesInst) sheet3Notes.push(`<li><strong>${month}/${d} (器械):</strong> ${log.notesInst} (${getCleanName(log.instNurseName)})</li>`);
+            if (log.notesSupervisor) sheet3Notes.push(`<li><strong>${month}/${d} (主管意見):</strong> ${log.notesSupervisor} (${getCleanName(log.supervisorNurseName)})</li>`);
+        }
+    }
+
+    sheet3Html += `
            <div class="monthly-footer-notes">
                ${sheet3FooterHtml}
                ${sheet3Notes.length > 0 ? `
@@ -2067,9 +2192,9 @@ function generateMonthlyReportHTML(year, month) {
            </div>
        </div>
        `;
-       
-       return sheet1Html + sheet2Html + sheet3Html;
-   }
+
+    return sheet1Html + sheet2Html + sheet3Html;
+}
 
 function handlePrint() {
     const date = elements.dateInput.value;
@@ -2089,7 +2214,7 @@ function handlePrintSelectedLog() {
     if (!selectedLogIdForModal) return;
     const log = handoverLogs.find(l => l.id === selectedLogIdForModal);
     if (!log) return;
-    
+
     const [year, month] = log.date.split("-").map(Number);
     const monthlyContainer = document.getElementById("print-monthly-container");
     if (monthlyContainer) {
@@ -2103,9 +2228,9 @@ function showToast(message, type = "info") {
     const toast = document.getElementById("toast");
     const toastMsg = document.getElementById("toast-message");
     const toastIcon = document.getElementById("toast-icon");
-    
+
     toastMsg.innerText = message;
-    
+
     if (type === "success") {
         toast.style.borderLeft = "5px solid var(--success)";
         toastIcon.className = "fa-solid fa-circle-check";
@@ -2119,10 +2244,10 @@ function showToast(message, type = "info") {
         toastIcon.className = "fa-solid fa-circle-info";
         toastIcon.style.color = "var(--secondary)";
     }
-    
+
     toast.style.opacity = "1";
     toast.style.pointerEvents = "all";
-    
+
     setTimeout(() => {
         toast.style.opacity = "0";
         toast.style.pointerEvents = "none";
@@ -2133,7 +2258,7 @@ function showToast(message, type = "info") {
 function bindEvents() {
     elements.themeToggle.addEventListener("click", toggleTheme);
     elements.printBtn.addEventListener("click", handlePrint);
-    
+
     // Switch role triggers
     if (elements.btnSwitchRole) elements.btnSwitchRole.addEventListener("click", openAdminAuthModal);
     if (elements.adminAuthCloseBtn) elements.adminAuthCloseBtn.addEventListener("click", closeAdminAuthModal);
@@ -2144,7 +2269,7 @@ function bindEvents() {
             if (e.key === "Enter") handleAdminAuthSubmit();
         });
     }
-    
+
     // Date range checker checkbox toggle
     if (elements.chkBatchAudit) {
         elements.chkBatchAudit.addEventListener("change", () => {
@@ -2159,7 +2284,7 @@ function bindEvents() {
             }
         });
     }
-    
+
     // Section submit buttons
     if (elements.btnSubmitR1) elements.btnSubmitR1.addEventListener("click", () => saveSectionData("r1"));
     if (elements.btnSubmitR2) elements.btnSubmitR2.addEventListener("click", () => saveSectionData("r2"));
@@ -2167,7 +2292,7 @@ function bindEvents() {
     if (elements.btnSubmitDevices) elements.btnSubmitDevices.addEventListener("click", () => saveSectionData("devices"));
     if (elements.btnSubmitInst) elements.btnSubmitInst.addEventListener("click", () => saveSectionData("instruments"));
     if (elements.btnSubmitSupervisor) elements.btnSubmitSupervisor.addEventListener("click", handleSupervisorSubmit);
-    
+
     // Save print footers
     const savePrintFootersBtn = document.getElementById("btn-save-print-footers");
     if (savePrintFootersBtn) {
@@ -2175,13 +2300,13 @@ function bindEvents() {
             const sheet1 = document.getElementById("edit-footer-sheet1").value.trim();
             const sheet2 = document.getElementById("edit-footer-sheet2").value.trim();
             const sheet3 = document.getElementById("edit-footer-sheet3").value.trim();
-            
+
             const newFooters = { sheet1, sheet2, sheet3 };
             localStorage.setItem("printFooters", JSON.stringify(newFooters));
             showToast("列印報表備註說明儲存成功！", "success");
         });
     }
-    
+
     // Date input change
     if (elements.dateInput) {
         elements.dateInput.addEventListener("change", () => {
@@ -2206,19 +2331,19 @@ function bindEvents() {
             }
         });
     }
-    
+
     // Detail Modal actions
     elements.modalCloseBtn.addEventListener("click", closeDetailsModal);
     elements.modalCloseFooterBtn.addEventListener("click", closeDetailsModal);
     elements.modalDeleteBtn.addEventListener("click", handleDeleteLog);
     elements.modalPrintBtn.addEventListener("click", handlePrintSelectedLog);
-    
+
     elements.detailModal.addEventListener("click", (e) => {
         if (e.target === elements.detailModal) {
             closeDetailsModal();
         }
     });
-    
+
     // Employee modal triggers
     elements.btnManageEmployeesTrigger.addEventListener("click", openEmployeeModal);
     elements.employeeModalCloseBtn.addEventListener("click", closeEmployeeModal);
@@ -2230,7 +2355,7 @@ function bindEvents() {
     });
     elements.btnAddEmployee.addEventListener("click", handleAddEmployee);
     elements.empFileImport.addEventListener("change", handleFileImport);
-    
+
     // Items modal triggers
     elements.btnManageItemsTrigger.addEventListener("click", openItemsModal);
     elements.itemsModalCloseBtn.addEventListener("click", closeItemsModal);

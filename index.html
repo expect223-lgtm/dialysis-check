@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>血液透析室點班交接系統</title>
+    <title>血液透析室點班單</title>
     <!-- Style Sheet -->
     <link rel="stylesheet" href="style.css">
     <!-- FontAwesome for beautiful icons -->
@@ -29,9 +29,14 @@
                 <i class="fa-solid fa-notes-medical"></i>
             </div>
             <div class="brand-text">
-                <h1>血液透析室點班系統</h1>
+                <h1>血液透析室點班單</h1>
             </div>
             <div class="header-controls">
+                <!-- Cloud Sync Status Indicator -->
+                <span id="cloud-sync-status" class="badge cloud-status-inactive"
+                    style="font-size: 0.95rem; padding: 6px 12px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; margin-right: 8px;">
+                    <i class="fa-solid fa-cloud-slash"></i> 尚未設定雲端 URL
+                </span>
                 <!-- Role Indicator & Toggle -->
                 <div class="role-selector" style="display: flex; align-items: center; gap: 8px; margin-right: 8px;">
                     <span class="badge" id="role-badge"
@@ -554,7 +559,8 @@
                         <option value="admin">管理人員</option>
                     </select>
                     <button class="btn btn-primary" id="btn-add-employee"
-                        style="padding: 8px 12px; font-size: 0.85rem; white-space: nowrap;"><i class="fa-solid fa-plus"></i> 新增</button>
+                        style="padding: 8px 12px; font-size: 0.85rem; white-space: nowrap;"><i
+                            class="fa-solid fa-plus"></i> 新增</button>
                 </div>
 
                 <div class="table-responsive" style="max-height: 200px; overflow-y: auto;">
