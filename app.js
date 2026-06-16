@@ -60,7 +60,7 @@ const DEFAULT_EMPLOYEES = {};
 
 // --- Cloud Database Configuration ---
 // 請在此處貼上您的 Google Apps Script 部署網頁應用程式 URL (Web App URL)
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwdpsAHdtwiQA6ADy5uU-WQ69axP9OTdSIgsEsYQAGGryB7yw8JJv2WzRPCJpbv2POP/exec";
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwdpsAHdtwiQA6ADy5uU-WQ69axP9OTdSIgsEsYQAGGryB7yw8JJv2WzRPCJpbv2POP/exec"
 
 // Global State
 let currentUserRole = "staff"; // "staff" or "admin"
