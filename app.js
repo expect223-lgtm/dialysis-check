@@ -189,7 +189,7 @@ async function postToCloud(payload, successMessage) {
         }
     } catch (error) {
         console.error("Cloud post failed:", error);
-        showToast("雲端同步失敗，資料已儲存至此裝置", "warning");
+        showToast(`雲端同步失敗 (${error.message || error})，資料已儲存至此裝置`, "warning");
         return false;
     }
 }
