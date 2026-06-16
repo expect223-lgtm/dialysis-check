@@ -196,7 +196,8 @@ async function postToCloud(payload, successMessage) {
 
         const response = await fetch(url, {
             method: "GET",
-            mode: "cors"
+            mode: "cors",
+            redirect: "follow"
         });
 
         if (!response.ok) throw new Error("HTTP error " + response.status);
