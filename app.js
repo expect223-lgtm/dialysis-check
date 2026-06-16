@@ -60,7 +60,7 @@ const DEFAULT_EMPLOYEES = {};
 
 // --- Cloud Database Configuration ---
 // 請在此處貼上您的 Google Apps Script 部署網頁應用程式 URL (Web App URL)
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycby1UKrcNbZH9Ik_Knp5h-mjaEET302vWu-zjS5yjYl1OQ5IL-lcA0hLTT40kOwld-pu/exec";
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwdpsAHdtwiQA6ADy5uU-WQ69axP9OTdSIgsEsYQAGGryB7yw8JJv2WzRPCJpbv2POP/exec";
 
 // Global State
 let currentUserRole = "staff"; // "staff" or "admin"
@@ -107,6 +107,29 @@ async function syncDataFromCloud() {
                     loadRecordForDate(date);
                 }
                 initHistoryTab(); // Refresh calendar & log list
+            }
+
+            // Update checklist items
+            if (res.checklistItems && Object.keys(res.checklistItems).length > 0) {
+                activeItems = res.checklistItems;
+                localStorage.setItem("checklistItems", JSON.stringify(activeItems));
+                renderAllChecklists();
+                performCalculations();
+                if (elements.itemsModal && elements.itemsModal.classList.contains("active")) {
+                    renderConfigItemsList();
+                }
+            } else {
+                // If cloud is empty, sync our local activeItems to cloud
+                postToCloud({ action: "syncChecklistItems", checklistItems: activeItems });
+            }
+
+            // Update print footers
+            if (res.printFooters && Object.keys(res.printFooters).length > 0) {
+                printFooters = res.printFooters;
+                localStorage.setItem("printFooters", JSON.stringify(printFooters));
+            } else {
+                // If cloud is empty, sync our local printFooters to cloud
+                postToCloud({ action: "syncPrintFooters", printFooters: printFooters });
             }
 
             updateCloudStatus("success", "雲端已同步");
@@ -177,18 +200,46 @@ Object.keys(DEFAULT_EMPLOYEES).forEach(id => {
     }
 });
 
-// Migrate employeeDb structure to support roles if needed
+// Migrate employeeDb structure to support roles and titles if needed
 Object.keys(employeeDb).forEach(id => {
     const val = employeeDb[id];
+    let name = "";
+    let role = "staff";
+    let title = "護理師";
+    let needsUpdate = false;
+
     if (typeof val === "string") {
-        const isAdmin = (id === "1001" || val.includes("護理長"));
+        name = val;
+        needsUpdate = true;
+    } else if (val && typeof val === "object") {
+        name = val.name || "";
+        role = val.role || "staff";
+        title = val.title || "";
+    }
+
+    if (!title) {
+        if (name.includes("護理長")) {
+            title = "護理長";
+        } else if (name.includes("組長") || name.includes("組長")) {
+            title = "護理組長";
+        } else {
+            title = "護理師";
+        }
+        needsUpdate = true;
+    }
+
+    // Determine role if not set or legacy check
+    if (typeof val === "string" || !val.role) {
+        role = (title === "護理長" || title === "護理組長") ? "admin" : "staff";
+        needsUpdate = true;
+    }
+
+    if (needsUpdate) {
         employeeDb[id] = {
-            name: val,
-            role: isAdmin ? "admin" : "staff"
+            name: name,
+            role: role,
+            title: title
         };
-        dbUpdated = true;
-    } else if (val && typeof val === "object" && !val.role) {
-        val.role = (id === "1001" || val.name.includes("護理長")) ? "admin" : "staff";
         dbUpdated = true;
     }
 });
@@ -739,6 +790,12 @@ function lookupEmployee(idVal, nameDisplay, statusBadge) {
 
     const emp = employeeDb[cleanId];
     if (emp) {
+        if (isSupervisor && emp.role !== "admin" && emp.title !== "護理長" && emp.title !== "護理組長") {
+            nameDisplay.innerText = emp.name + " (無主管權限)";
+            statusBadge.className = "badge badge-warning";
+            statusBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> 權限不足`;
+            return;
+        }
         nameDisplay.innerText = emp.name;
         statusBadge.className = "badge badge-success";
         statusBadge.innerHTML = isSupervisor ? `<i class="fa-solid fa-circle-check"></i> 已核簽` : `<i class="fa-solid fa-circle-check"></i> 已驗證`;
@@ -1010,15 +1067,20 @@ function saveSectionData(category) {
 
 function handleSupervisorSubmit() {
     const supervisorId = elements.nurseSupervisorId.value.trim();
-    const supervisorName = employeeDb[supervisorId] ? employeeDb[supervisorId].name : "";
+    const emp = employeeDb[supervisorId];
+    const supervisorName = emp ? emp.name : "";
     const notesSupervisor = elements.notesSupervisor.value.trim();
 
     if (!supervisorId) {
         showToast("請輸入單位主管工號！", "warning");
         return;
     }
-    if (!supervisorName) {
+    if (!emp) {
         showToast("單位主管工號未驗證！", "warning");
+        return;
+    }
+    if (emp.role !== "admin" && emp.title !== "護理長" && emp.title !== "護理組長") {
+        showToast("此工號人員無主管權限，無法進行主管核簽！", "warning");
         return;
     }
 
@@ -1480,15 +1542,32 @@ function renderEmployeeTable() {
         const emp = employeeDb[id];
         const name = emp ? emp.name : "";
         const role = emp ? (emp.role || "staff") : "staff";
-        const roleText = role === "admin"
-            ? '<span class="badge" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6; font-size: 0.8rem; font-weight: bold; padding: 2px 8px;">管理人員</span>'
-            : '<span class="badge" style="background: rgba(14, 165, 233, 0.1); color: var(--secondary); font-size: 0.8rem; font-weight: bold; padding: 2px 8px;">一般人員</span>';
+        const title = emp ? (emp.title || "護理師") : "護理師";
 
         const tr = document.createElement("tr");
+
+        // Generate role select for inline adjustment
+        const roleSelectHtml = `
+            <select onchange="updateEmployeeField('${id}', 'role', this.value)" style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.85rem;">
+                <option value="staff" ${role === 'staff' ? 'selected' : ''}>一般人員</option>
+                <option value="admin" ${role === 'admin' ? 'selected' : ''}>管理人員</option>
+            </select>
+        `;
+
+        // Generate title select for inline adjustment
+        const titleSelectHtml = `
+            <select onchange="updateEmployeeField('${id}', 'title', this.value)" style="padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.85rem;">
+                <option value="護理師" ${title === '護理師' ? 'selected' : ''}>護理師</option>
+                <option value="護理組長" ${title === '護理組長' ? 'selected' : ''}>護理組長</option>
+                <option value="護理長" ${title === '護理長' ? 'selected' : ''}>護理長</option>
+            </select>
+        `;
+
         tr.innerHTML = `
             <td style="padding: 8px 12px; font-weight: 600;">${id}</td>
             <td style="padding: 8px 12px;">${name}</td>
-            <td style="padding: 8px 12px;">${roleText}</td>
+            <td style="padding: 8px 12px;">${roleSelectHtml}</td>
+            <td style="padding: 8px 12px;">${titleSelectHtml}</td>
             <td style="padding: 8px 12px; text-align: center;">
                 <button class="btn btn-sm btn-danger" onclick="deleteEmployee('${id}')" style="padding: 4px 8px; font-size: 0.8rem;">
                     <i class="fa-solid fa-trash-can"></i> 刪除
@@ -1498,6 +1577,26 @@ function renderEmployeeTable() {
         elements.tbodyEmployees.appendChild(tr);
     });
 }
+
+window.updateEmployeeField = function (id, field, value) {
+    if (employeeDb[id]) {
+        employeeDb[id][field] = value;
+        // If title is updated to 護理長 or 護理組長, automatically update role to admin, and vice-versa if changed to nurse
+        if (field === "title") {
+            if (value === "護理長" || value === "護理組長") {
+                employeeDb[id].role = "admin";
+            } else {
+                employeeDb[id].role = "staff";
+            }
+        }
+        localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
+        renderEmployeeTable();
+        triggerAllLookups();
+
+        // Sync to Cloud
+        postToCloud({ action: "syncEmployees", employees: employeeDb });
+    }
+};
 
 window.deleteEmployee = function (id) {
     const emp = employeeDb[id];
@@ -1518,19 +1617,22 @@ function handleAddEmployee() {
     const name = elements.newEmpName.value.trim();
     const roleSelect = document.getElementById("new-emp-role");
     const role = roleSelect ? roleSelect.value : "staff";
+    const titleSelect = document.getElementById("new-emp-title");
+    const title = titleSelect ? titleSelect.value : "護理師";
 
     if (!id || !name) {
         showToast("請填寫工號與姓名！", "warning");
         return;
     }
 
-    employeeDb[id] = { name: name, role: role };
+    employeeDb[id] = { name: name, role: role, title: title };
     localStorage.setItem("employeeDb", JSON.stringify(employeeDb));
     renderEmployeeTable();
 
     elements.newEmpId.value = "";
     elements.newEmpName.value = "";
     if (roleSelect) roleSelect.value = "staff"; // reset to default
+    if (titleSelect) titleSelect.value = "護理師"; // reset to default
     showToast("員工新增成功！", "success");
     triggerAllLookups();
 
@@ -1586,7 +1688,12 @@ function parseCSV(text) {
                 return;
             }
             if (id && name) {
-                employeeDb[id] = { name: name, role: "staff" };
+                let title = "護理師";
+                if (name.includes("護理長")) title = "護理長";
+                else if (name.includes("組長")) title = "護理組長";
+                let role = (title === "護理長" || title === "護理組長") ? "admin" : "staff";
+
+                employeeDb[id] = { name: name, role: role, title: title };
                 count++;
             }
         }
@@ -1616,7 +1723,12 @@ function parseExcelJson(rows) {
             return;
         }
         if (id && name && id !== "undefined" && name !== "undefined") {
-            employeeDb[id] = { name: name, role: "staff" };
+            let title = "護理師";
+            if (name.includes("護理長")) title = "護理長";
+            else if (name.includes("組長")) title = "護理組長";
+            let role = (title === "護理長" || title === "護理組長") ? "admin" : "staff";
+
+            employeeDb[id] = { name: name, role: role, title: title };
             count++;
         }
     });
@@ -1718,6 +1830,7 @@ window.saveItemEdit = function (cat, itemId) {
         showToast("品項修改成功！", "success");
         renderAllChecklists();
         performCalculations();
+        postToCloud({ action: "syncChecklistItems", checklistItems: activeItems });
     }
 };
 
@@ -1729,6 +1842,7 @@ window.deleteItem = function (cat, itemId) {
         renderConfigItemsList();
         renderAllChecklists();
         performCalculations();
+        postToCloud({ action: "syncChecklistItems", checklistItems: activeItems });
     }
 };
 
@@ -1760,6 +1874,7 @@ function handleAddChecklistItem() {
     renderConfigItemsList();
     renderAllChecklists();
     performCalculations();
+    postToCloud({ action: "syncChecklistItems", checklistItems: activeItems });
 }
 
 function generateSupervisorSigRowHTML(monthLogs, daysInMonth, selectedMonthStr) {
@@ -2303,7 +2418,9 @@ function bindEvents() {
 
             const newFooters = { sheet1, sheet2, sheet3 };
             localStorage.setItem("printFooters", JSON.stringify(newFooters));
+            printFooters = newFooters;
             showToast("列印報表備註說明儲存成功！", "success");
+            postToCloud({ action: "syncPrintFooters", printFooters: newFooters });
         });
     }
 

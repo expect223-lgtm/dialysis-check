@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>血液透析室點班單</title>
     <!-- Style Sheet -->
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1.0.2">
     <!-- FontAwesome for beautiful icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SheetJS for parsing Excel batch files -->
@@ -529,7 +529,7 @@
 
     <!-- Employee Manager Modal -->
     <div class="modal" id="employee-modal">
-        <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h3>管理員工名冊</h3>
                 <button class="modal-close" id="employee-modal-close-btn">&times;</button>
@@ -558,6 +558,12 @@
                         <option value="staff" selected>一般人員</option>
                         <option value="admin">管理人員</option>
                     </select>
+                    <select id="new-emp-title"
+                        style="padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--input-bg); color: var(--text-main); font-size: 0.85rem;">
+                        <option value="護理師" selected>護理師</option>
+                        <option value="護理組長">護理組長</option>
+                        <option value="護理長">護理長</option>
+                    </select>
                     <button class="btn btn-primary" id="btn-add-employee"
                         style="padding: 8px 12px; font-size: 0.85rem; white-space: nowrap;"><i
                             class="fa-solid fa-plus"></i> 新增</button>
@@ -570,6 +576,7 @@
                                 <th style="padding: 8px 12px;">員工工號</th>
                                 <th style="padding: 8px 12px;">姓名</th>
                                 <th style="padding: 8px 12px;">權限</th>
+                                <th style="padding: 8px 12px;">職稱</th>
                                 <th style="padding: 8px 12px; text-align: center;">操作</th>
                             </tr>
                         </thead>
@@ -712,7 +719,7 @@
     <div id="print-monthly-container"></div>
 
     <!-- Application Logic -->
-    <script src="app.js"></script>
+    <script src="app.js?v=1.0.2"></script>
 </body>
 
 </html>
