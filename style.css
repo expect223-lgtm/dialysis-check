@@ -12,7 +12,7 @@
     --warning: #f59e0b;
     --danger: #ef4444;
     --danger-light: #fee2e2;
-    
+
     /* Light Mode Colors */
     --bg-main: #f8fafc;
     --bg-card: #ffffff;
@@ -23,7 +23,7 @@
     --input-bg: #ffffff;
     --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.05), 0 4px 6px -4px rgb(0 0 0 / 0.05);
-    
+
     --radius: 12px;
     --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -189,7 +189,8 @@ header {
     font-weight: 500;
 }
 
-.meta-item select, .meta-item input {
+.meta-item select,
+.meta-item input {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
@@ -201,7 +202,8 @@ header {
     transition: var(--transition);
 }
 
-.meta-item select:focus, .meta-item input:focus {
+.meta-item select:focus,
+.meta-item input:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
 }
@@ -265,8 +267,15 @@ header {
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Section Title & Description */
@@ -313,22 +322,26 @@ table {
     text-align: left;
 }
 
-th, td {
+th,
+td {
     padding: 14px 16px;
     border-bottom: 1px solid var(--border-color);
     vertical-align: middle;
-    font-size: 1.2rem; /* Enlarged font size */
+    font-size: 1.2rem;
+    /* Enlarged font size */
 }
 
 tbody td:first-child {
-    font-weight: 700; /* Bolder item names */
+    font-weight: 700;
+    /* Bolder item names */
 }
 
 th {
     background-color: var(--table-header-bg);
     color: var(--text-muted);
     font-weight: 700;
-    font-size: 1.05rem; /* Enlarged header font size */
+    font-size: 1.05rem;
+    /* Enlarged header font size */
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -342,7 +355,8 @@ tbody tr:hover {
 }
 
 /* Input Fields in Tables */
-.num-input, tbody td input[type="text"] {
+.num-input,
+tbody td input[type="text"] {
     width: 110px;
     padding: 8px 12px;
     border-radius: 6px;
@@ -351,11 +365,13 @@ tbody tr:hover {
     color: var(--text-main);
     text-align: center;
     font-weight: 700;
-    font-size: 1.25rem; /* Enlarged input font size */
+    font-size: 1.25rem;
+    /* Enlarged input font size */
 }
 
 .checkbox-custom {
-    width: 26px; /* Enlarged checkbox */
+    width: 26px;
+    /* Enlarged checkbox */
     height: 26px;
     accent-color: var(--primary);
     cursor: pointer;
@@ -376,7 +392,8 @@ tbody tr:hover {
     gap: 6px;
     padding: 6px 12px;
     border-radius: 30px;
-    font-size: 1.05rem; /* Enlarged status badge font size */
+    font-size: 1.05rem;
+    /* Enlarged status badge font size */
     font-weight: 700;
 }
 
@@ -534,8 +551,15 @@ tbody tr:hover {
 }
 
 @keyframes scaleUp {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+        transform: scale(0.95);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .modal-header {
@@ -647,10 +671,21 @@ tbody tr:hover {
     display: inline-block;
 }
 
-.dot-day { background-color: var(--success); }
-.dot-evening { background-color: var(--secondary); }
-.dot-night { background-color: var(--warning); }
-.dot-error { background-color: var(--danger); }
+.dot-day {
+    background-color: var(--success);
+}
+
+.dot-evening {
+    background-color: var(--secondary);
+}
+
+.dot-night {
+    background-color: var(--warning);
+}
+
+.dot-error {
+    background-color: var(--danger);
+}
 
 /* History Log List */
 .log-list {
@@ -698,6 +733,7 @@ tbody tr:hover {
     font-size: 0.95rem;
     font-weight: 700;
 }
+
 .role-admin {
     background: rgba(139, 92, 246, 0.15) !important;
     color: #8b5cf6 !important;
@@ -706,7 +742,8 @@ tbody tr:hover {
 
 /* Date input picker styling - Elderly Friendly (Larger Font, Larger Picker Icon) */
 #handover-date {
-    font-size: 1.8rem !important; /* Extremely clear and large font */
+    font-size: 1.8rem !important;
+    /* Extremely clear and large font */
     height: auto !important;
     padding: 12px 16px !important;
     border-radius: 10px !important;
@@ -723,7 +760,8 @@ tbody tr:hover {
     margin-left: 10px;
 }
 
-#batch-start-date, #batch-end-date {
+#batch-start-date,
+#batch-end-date {
     font-size: 1.1rem !important;
     padding: 8px 12px !important;
     border-radius: 8px !important;
@@ -738,14 +776,19 @@ tbody tr:hover {
 
 /* Calendar Date Grid - Elderly Friendly Font Sizes */
 .calendar-cell {
-    height: 85px !important; /* Slightly taller cell to fit larger date numbers */
+    height: 85px !important;
+    /* Slightly taller cell to fit larger date numbers */
 }
+
 .calendar-cell .day-num {
-    font-size: 1.15rem !important; /* Larger day numbers */
+    font-size: 1.15rem !important;
+    /* Larger day numbers */
     font-weight: 700 !important;
 }
+
 .calendar-day-header {
-    font-size: 1.1rem !important; /* Larger day of week header */
+    font-size: 1.1rem !important;
+    /* Larger day of week header */
     font-weight: 700 !important;
 }
 
@@ -760,28 +803,6 @@ tbody tr:hover {
     display: none;
 }
 
-/* Cloud Sync Status Classes */
-.cloud-status-inactive {
-    background: rgba(100, 116, 139, 0.1) !important;
-    color: var(--text-muted) !important;
-    border: 1px solid rgba(100, 116, 139, 0.2);
-}
-.cloud-status-syncing {
-    background: rgba(245, 158, 11, 0.1) !important;
-    color: var(--warning) !important;
-    border: 1px solid rgba(245, 158, 11, 0.3);
-}
-.cloud-status-success {
-    background: rgba(16, 185, 129, 0.1) !important;
-    color: var(--success) !important;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-}
-.cloud-status-error {
-    background: rgba(239, 68, 68, 0.1) !important;
-    color: var(--danger) !important;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
 /* Printable styles */
 @media print {
     body {
@@ -790,12 +811,12 @@ tbody tr:hover {
         padding: 0 !important;
         margin: 0 !important;
     }
-    
+
     /* Hide all main screen elements */
-    body > *:not(#print-monthly-container) {
+    body>*:not(#print-monthly-container) {
         display: none !important;
     }
-    
+
     #print-monthly-container {
         display: block !important;
         background: white !important;
@@ -804,34 +825,34 @@ tbody tr:hover {
         padding: 0 !important;
         margin: 0 !important;
     }
-    
+
     @page {
         size: landscape;
         margin: 8mm 6mm;
     }
-    
+
     .monthly-report-page {
         page-break-after: always;
         width: 100% !important;
         box-sizing: border-box;
         padding: 5px 0;
     }
-    
+
     .monthly-report-page:last-child {
         page-break-after: avoid;
     }
-    
+
     .monthly-report-header {
         text-align: center;
         margin-bottom: 10px;
     }
-    
+
     .monthly-report-header h2 {
         font-size: 15pt;
         font-weight: bold;
         margin-bottom: 3px;
     }
-    
+
     .monthly-report-meta {
         font-size: 9.5pt;
         display: flex;
@@ -840,14 +861,15 @@ tbody tr:hover {
         padding-bottom: 4px;
         margin-bottom: 8px;
     }
-    
+
     .monthly-table {
         width: 100% !important;
         border-collapse: collapse !important;
         margin-bottom: 10px;
     }
-    
-    .monthly-table th, .monthly-table td {
+
+    .monthly-table th,
+    .monthly-table td {
         border: 1px solid black !important;
         padding: 3px 1px !important;
         font-size: 7.5pt !important;
@@ -857,14 +879,14 @@ tbody tr:hover {
         color: black !important;
         background: none !important;
     }
-    
+
     .monthly-table th {
         background-color: #f1f5f9 !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
         font-weight: bold !important;
     }
-    
+
     .monthly-table td.item-name-col {
         text-align: left !important;
         padding-left: 5px !important;
@@ -872,16 +894,16 @@ tbody tr:hover {
         width: 150px !important;
         white-space: nowrap;
     }
-    
+
     .monthly-table td.default-val-col {
         font-weight: bold !important;
         width: 45px !important;
     }
-    
+
     .monthly-table td.day-col {
         width: 24px !important;
     }
-    
+
     .monthly-table tr.category-row td {
         background-color: #e2e8f0 !important;
         -webkit-print-color-adjust: exact;
@@ -891,14 +913,14 @@ tbody tr:hover {
         padding-left: 8px !important;
         font-size: 8.5pt !important;
     }
-    
+
     .monthly-table tr.signature-row td {
         font-weight: bold !important;
         background-color: #f8fafc !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
-    
+
     .monthly-table tr.signature-row td.sig-label-col {
         text-align: left !important;
         padding-left: 5px !important;
@@ -906,23 +928,23 @@ tbody tr:hover {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
-    
+
     .monthly-footer-notes {
         margin-top: 6px;
         font-size: 8pt;
         line-height: 1.3;
     }
-    
+
     .monthly-notes-list {
         margin-top: 3px;
         padding-left: 20px;
         font-size: 7.5pt;
     }
-    
+
     .monthly-notes-list li {
         margin-bottom: 2px;
     }
-    
+
     .monthly-supervisor-block {
         display: flex;
         justify-content: flex-end;

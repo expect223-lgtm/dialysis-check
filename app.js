@@ -19,6 +19,7 @@ const DEFAULT_ITEMS = {
         { id: "r2_pillow", name: "乳膠枕", defaultVal: "17", type: "number" },
         { id: "r2_emerg", name: "急救包", defaultVal: "20", type: "number" },
         { id: "r2_remote", name: "遙控器", defaultVal: "20", type: "number" },
+
     ],
     meds: [
         { id: "med_heparin", name: "Heparin 25000u/5cc", defaultVal: "60", type: "number" },
@@ -58,7 +59,7 @@ const DEFAULT_EMPLOYEES = {};
 
 // --- Cloud Database Configuration ---
 // 請在此處貼上您的 Google Apps Script 部署網頁應用程式 URL (Web App URL)
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzam0_hDUgcF4z5t-l7foze9Pzk7o-T6GzQp6MMxeCyRVSouJhhHL3k_uJ-VddmJv5L/exec"
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbw86fLom4HYWTlUIiQM6Mxwu5S1wxaSn6ZvowRSjKew0rSqqUwINqyoe8EVDrduIY6Z/exec"
 
 // Global State
 let currentUserRole = "staff"; // "staff" or "admin"
